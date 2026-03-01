@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF 切分、轉圖與排序工具</title>
+    <title>PDF 切分、轉圖與排序工具 (堅固版)</title>
     <!-- 引入 PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <!-- 引入 pdf-lib -->
@@ -18,10 +18,10 @@
             border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             display: flex; gap: 15px; align-items: center; flex-wrap: wrap;
         }
-        .toolbar input[type="text"] { padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
+        .toolbar input[type="text"] { padding: 6px; border: 1px solid #ccc; border-radius: 4px; width: 200px;}
         .toolbar button {
             padding: 6px 12px; background-color: #007bff; color: white;
-            border: none; border-radius: 4px; cursor: pointer;
+            border: none; border-radius: 4px; cursor: pointer; font-weight: bold;
         }
         .toolbar button:disabled { background-color: #ccc; cursor: not-allowed; }
         .toolbar button:hover:not(:disabled) { background-color: #0056b3; }
@@ -39,14 +39,14 @@
         .sortable-ghost { opacity: 0.4; background-color: #f0f0f0; border: 2px dashed #999; }
         
         .page-item canvas { 
-            max-width: 100%; height: auto; border: 1px solid #eee; 
-            cursor: pointer; 
+            max-width: 100%; height: auto; border: 1px solid #eee; cursor: pointer; 
         }
         .page-item canvas:hover { box-shadow: 0 0 8px rgba(0,123,255,0.5); }
         
         .controls { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; }
         .controls span { font-size: 14px; color: #555; font-weight: bold; }
-        .controls button { font-size: 12px; padding: 4px 8px; cursor: pointer; }
+        .controls button { font-size: 12px; padding: 4px 8px; cursor: pointer; background: #6c757d; color: white; border: none; border-radius: 3px;}
+        .controls button:hover { background: #5a6268; }
         .controls input[type="checkbox"] { transform: scale(1.3); cursor: pointer; }
     </style>
 </head>
@@ -68,8 +68,7 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-        // 【關鍵改變】：我們直接儲存檔案本身 (File Object)，不存記憶體 Buffer
-        let currentFile = null; 
+        let currentFile = null; // 我們直接儲存「檔案本身」，不存記憶體
         let originalFileName = ""; 
 
         const uploadInput = document.getElementById('pdf-upload');
@@ -77,42 +76,41 @@
         const btnExportPdf = document.getElementById('btn-export-pdf');
         const pdfFilenameInput = document.getElementById('pdf-filename');
 
-        // 初始化拖曳排序功能
-        new Sortable(container, {
-            animation: 150,
-            ghostClass: 'sortable-ghost',
-            filter: 'button, input',
-            preventOnFilter: false
-        });
-
-        // 建立一個公用函數，每次呼叫都會從檔案中產生一份「全新的」ArrayBuffer
-        function readFileAsArrayBuffer(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = () => reject(reader.error);
-                reader.readAsArrayBuffer(file);
+        // 初始化拖曳排序功能 (加上 Try-Catch 保護)
+        try {
+            new Sortable(container, {
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                filter: 'button, input',
+                preventOnFilter: false
             });
+        } catch (err) {
+            console.warn("拖曳功能初始化失敗，但不會影響其他功能運作:", err);
         }
 
         // 1. 處理檔案上傳與渲染
         uploadInput.addEventListener('change', async (e) => {
-            currentFile = e.target.files[0];
-            if (!currentFile) return;
+            const file = e.target.files[0];
+            if (!file) return;
 
-            originalFileName = currentFile.name.replace(/\.[^/.]+$/, "");
+            // 立刻讓畫面出現載入中，確保「有反應」
+            container.innerHTML = '<h3 style="color: #007bff;">⏳ 正在解析 PDF 檔案，請稍候...</h3>';
+            btnExportPdf.disabled = true;
+
+            currentFile = file; 
+            originalFileName = file.name.replace(/\.[^/.]+$/, "");
             pdfFilenameInput.value = `${originalFileName}_擷取`;
-            
-            container.innerHTML = '正在載入 PDF 頁面，請稍候...';
-            btnExportPdf.disabled = false;
 
             try {
-                // 【讀取第 1 次】提供給 PDF.js 產生縮圖
-                const pdfData = await readFileAsArrayBuffer(currentFile);
-                const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+                // 【關鍵防護 1】使用原生 arrayBuffer()，並明確轉換為 PDF.js 要求的 Uint8Array
+                const buffer = await currentFile.arrayBuffer();
+                const pdfjsData = new Uint8Array(buffer);
+                
+                const loadingTask = pdfjsLib.getDocument({ data: pdfjsData });
                 const pdf = await loadingTask.promise;
                 
-                container.innerHTML = ''; 
+                container.innerHTML = ''; // 清空載入文字
+                btnExportPdf.disabled = false; // 開啟匯出按鈕
 
                 for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
                     const page = await pdf.getPage(pageNum);
@@ -123,4 +121,126 @@
                     pageDiv.dataset.originalIndex = pageNum - 1; 
 
                     const canvas = document.createElement('canvas');
-                    // 保留 willReadFrequently: true 以消滅 Canvas 警告
+                    const context = canvas.getContext('2d', { willReadFrequently: true }); // 消滅 Canvas 警告
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    await page.render({ canvasContext: context, viewport: viewport }).promise;
+
+                    const controlsDiv = document.createElement('div');
+                    controlsDiv.className = 'controls';
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.className = 'page-checkbox';
+                    
+                    checkbox.addEventListener('change', () => {
+                        if (checkbox.checked) {
+                            pageDiv.classList.add('selected');
+                        } else {
+                            pageDiv.classList.remove('selected');
+                        }
+                    });
+
+                    canvas.addEventListener('click', () => {
+                        checkbox.checked = !checkbox.checked;
+                        checkbox.dispatchEvent(new Event('change'));
+                    });
+
+                    const pageLabel = document.createElement('span');
+                    pageLabel.innerText = `原第 ${pageNum} 頁`;
+
+                    const btnDownloadImg = document.createElement('button');
+                    btnDownloadImg.innerText = '存為圖片';
+                    btnDownloadImg.addEventListener('click', () => {
+                        downloadAsImage(canvas, pageNum);
+                    });
+
+                    controlsDiv.appendChild(checkbox);
+                    controlsDiv.appendChild(pageLabel);
+                    controlsDiv.appendChild(btnDownloadImg);
+                    
+                    pageDiv.appendChild(canvas);
+                    pageDiv.appendChild(controlsDiv);
+                    container.appendChild(pageDiv);
+                }
+            } catch (error) {
+                // 萬一出錯，直接把錯誤顯示在畫面上，不讓你乾等
+                container.innerHTML = `<h3 style="color:red;">❌ 載入失敗：${error.message}</h3>`;
+                console.error("載入失敗：", error);
+            } finally {
+                // 【關鍵防護 2】清空 input 的值！這樣你再次選取「同一個檔案」時，也能正常觸發！
+                e.target.value = '';
+            }
+        });
+
+        // 2. 匯出選擇的頁面為新 PDF
+        btnExportPdf.addEventListener('click', async () => {
+            const allItems = Array.from(container.querySelectorAll('.page-item'));
+            const selectedElements = allItems.filter(item => item.querySelector('.page-checkbox').checked);
+
+            if (selectedElements.length === 0) {
+                alert('請至少勾選一頁！');
+                return;
+            }
+
+            const indicesToExport = selectedElements.map(item => parseInt(item.dataset.originalIndex));
+
+            let customName = pdfFilenameInput.value.trim() || 'new_document';
+            if (!customName.toLowerCase().endsWith('.pdf')) customName += '.pdf';
+
+            const originalBtnText = btnExportPdf.innerText;
+            btnExportPdf.innerText = "⏳ 正在處理中...";
+            btnExportPdf.disabled = true;
+
+            try {
+                // 【關鍵防護 3】再次呼叫原生 arrayBuffer()，取得全新的乾淨記憶體給 pdf-lib 使用
+                const freshBuffer = await currentFile.arrayBuffer();
+                
+                const pdfDoc = await PDFLib.PDFDocument.load(freshBuffer);
+                const newPdfDoc = await PDFLib.PDFDocument.create();
+
+                const copiedPages = await newPdfDoc.copyPages(pdfDoc, indicesToExport);
+                copiedPages.forEach((page) => newPdfDoc.addPage(page));
+
+                const pdfBytes = await newPdfDoc.save();
+                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                triggerDownload(blob, customName);
+
+            } catch (error) {
+                console.error("PDF 匯出失敗:", error);
+                alert("匯出 PDF 時發生錯誤！請按 F12 查看控制台訊息。");
+            } finally {
+                btnExportPdf.innerText = originalBtnText;
+                btnExportPdf.disabled = false;
+            }
+        });
+
+        // 3. 將單頁 Canvas 轉為圖片並下載
+        function downloadAsImage(canvas, pageNum) {
+            const defaultImgName = `${originalFileName}_page_${pageNum}`;
+            let customImgName = prompt('請輸入圖片檔名 (不含副檔名也行)：', defaultImgName);
+            
+            if (customImgName === null) return; 
+
+            customImgName = customImgName.trim() || defaultImgName;
+            if (!customImgName.toLowerCase().endsWith('.png')) customImgName += '.png';
+
+            canvas.toBlob((blob) => {
+                triggerDownload(blob, customImgName);
+            }, 'image/png');
+        }
+
+        // 4. 共用下載函數
+        function triggerDownload(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
