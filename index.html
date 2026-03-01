@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF 切分、轉圖與排序工具 (完美版)</title>
+    <title>PDF 切分、轉圖與排序工具 (終極穩定版)</title>
     <!-- 引入 PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <!-- 引入 pdf-lib -->
@@ -68,7 +68,7 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-        let currentPdfBytes = null; // 儲存原始檔案的 ArrayBuffer
+        let currentPdfUint8Array = null; // 改用 Uint8Array 來儲存，確保複製安全
         let originalFileName = ""; 
 
         const uploadInput = document.getElementById('pdf-upload');
@@ -92,14 +92,16 @@
             originalFileName = file.name.replace(/\.[^/.]+$/, "");
             pdfFilenameInput.value = `${originalFileName}_擷取`;
 
-            // 讀取檔案為 ArrayBuffer
-            currentPdfBytes = await file.arrayBuffer();
+            // 讀取檔案，並立刻轉換為 Uint8Array 格式（最穩定）
+            const arrayBuffer = await file.arrayBuffer();
+            currentPdfUint8Array = new Uint8Array(arrayBuffer);
+            
             container.innerHTML = '正在載入 PDF 頁面，請稍候...';
             btnExportPdf.disabled = false;
 
             try {
-                // 【關鍵修復】: 使用 .slice(0) 複製一份資料給 PDF.js，避免原資料被 Detach
-                const pdfjsData = currentPdfBytes.slice(0);
+                // 【修復2：獨立記憶體】使用 new Uint8Array() 強制複製一份全新的記憶體給 PDF.js
+                const pdfjsData = new Uint8Array(currentPdfUint8Array);
                 const loadingTask = pdfjsLib.getDocument({ data: pdfjsData });
                 const pdf = await loadingTask.promise;
                 
@@ -114,6 +116,19 @@
                     pageDiv.dataset.originalIndex = pageNum - 1; 
 
                     const canvas = document.createElement('canvas');
-                    const context = canvas.getContext('2d');
+                    // 【修復1：消滅警告】加入 { willReadFrequently: true } 提升 Canvas 效能
+                    const context = canvas.getContext('2d', { willReadFrequently: true });
                     canvas.width = viewport.width;
                     canvas.height = viewport.height;
+                    await page.render({ canvasContext: context, viewport: viewport }).promise;
+
+                    const controlsDiv = document.createElement('div');
+                    controlsDiv.className = 'controls';
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.className = 'page-checkbox';
+                    
+                    checkbox.addEventListener('change', () => {
+                        if (checkbox.checked) {
+                            pageDiv.classList.add('selected');
