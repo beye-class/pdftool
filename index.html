@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF 切分、轉圖與排序工具</title>
+    <title>PDF 切分、轉圖與排序工具 (穩定版)</title>
     <!-- 引入 PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <!-- 引入 pdf-lib -->
@@ -14,61 +14,40 @@
     <style>
         body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
         .toolbar { 
-            margin-bottom: 20px; 
-            padding: 15px; 
-            background: #fff; 
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            display: flex;
-            gap: 15px;
-            align-items: center;
-            flex-wrap: wrap;
+            margin-bottom: 20px; padding: 15px; background: #fff; 
+            border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex; gap: 15px; align-items: center; flex-wrap: wrap;
         }
-        .toolbar input[type="text"] {
-            padding: 6px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
+        .toolbar input[type="text"] { padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
         .toolbar button {
-            padding: 6px 12px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
+            padding: 6px 12px; background-color: #007bff; color: white;
+            border: none; border-radius: 4px; cursor: pointer;
         }
         .toolbar button:disabled { background-color: #ccc; cursor: not-allowed; }
         .toolbar button:hover:not(:disabled) { background-color: #0056b3; }
 
         #thumbnails-container { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); 
-            gap: 20px; 
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; 
         }
         .page-item { 
-            background: #fff;
-            border: 2px solid transparent; 
-            padding: 10px; 
-            text-align: center; 
-            border-radius: 8px; 
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            cursor: grab; /* 提示可拖曳 */
-            transition: transform 0.2s;
+            background: #fff; border: 2px solid transparent; padding: 10px; 
+            text-align: center; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: all 0.2s; cursor: grab; /* 滑鼠顯示為可拖曳 */
         }
-        .page-item:active { cursor: grabbing; } /* 拖曳中的游標 */
+        .page-item:active { cursor: grabbing; }
         .page-item.selected { border: 2px solid #007bff; background: #e9f5ff; }
-        
-        /* 拖曳時的佔位符樣式 */
         .sortable-ghost { opacity: 0.4; background-color: #f0f0f0; border: 2px dashed #999; }
         
-        .page-item canvas { max-width: 100%; height: auto; border: 1px solid #eee; pointer-events: none; }
+        .page-item canvas { 
+            max-width: 100%; height: auto; border: 1px solid #eee; 
+            cursor: pointer; /* 提示圖片可以點擊 */
+        }
+        .page-item canvas:hover { box-shadow: 0 0 8px rgba(0,123,255,0.5); }
         
         .controls { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; }
-        .controls span { font-size: 14px; color: #555; }
+        .controls span { font-size: 14px; color: #555; font-weight: bold; }
         .controls button { font-size: 12px; padding: 4px 8px; cursor: pointer; }
-        
-        /* 讓 Checkbox 和 Canvas 點擊區塊更容易觸發 */
-        .click-area { position: absolute; top: 0; left: 0; right: 0; bottom: 40px; cursor: pointer; z-index: 10; }
+        .controls input[type="checkbox"] { transform: scale(1.3); cursor: pointer; }
     </style>
 </head>
 <body>
@@ -79,14 +58,15 @@
         <div>
             <label for="pdf-filename">新 PDF 檔名：</label>
             <input type="text" id="pdf-filename" value="new_document" placeholder="請輸入檔名">
-            <button id="btn-export-pdf" disabled>匯出勾選的頁面為新 PDF</button>
+            <button id="btn-export-pdf" disabled>匯出勾選的頁面</button>
         </div>
-        <span style="font-size: 13px; color: #666; margin-left: auto;">💡 提示：可以用滑鼠拖曳縮圖來改變匯出順序</span>
+        <span style="font-size: 13px; color: #666; margin-left: auto;">💡 提示：點擊圖片可勾選，按住圖片可拖曳排序</span>
     </div>
 
     <div id="thumbnails-container"></div>
 
     <script>
+        // 設定 PDF.js 的 Worker (必須)
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
         let currentPdfBytes = null;
@@ -97,137 +77,139 @@
         const btnExportPdf = document.getElementById('btn-export-pdf');
         const pdfFilenameInput = document.getElementById('pdf-filename');
 
-        // 啟動 SortableJS 拖曳功能
+        // 初始化拖曳排序功能 (解決衝突的關鍵)
         new Sortable(container, {
             animation: 150,
             ghostClass: 'sortable-ghost',
-            delay: 50, // 稍微延遲避免跟點擊事件衝突
-            delayOnTouchOnly: true
+            // 關鍵修復：忽略按鈕與勾選框，讓它們可以被正常點擊，不會觸發拖曳
+            filter: 'button, input', 
+            preventOnFilter: false
         });
 
-        // 1. 處理檔案上傳
+        // 1. 處理檔案上傳與渲染
         uploadInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
+            // 預設檔名設定
             originalFileName = file.name.replace(/\.[^/.]+$/, "");
             pdfFilenameInput.value = `${originalFileName}_擷取`;
 
+            // 讀取檔案
             currentPdfBytes = await file.arrayBuffer();
-            container.innerHTML = '載入中，請稍候...';
+            container.innerHTML = '正在載入 PDF 頁面，請稍候...';
             btnExportPdf.disabled = false;
 
-            const loadingTask = pdfjsLib.getDocument({ data: currentPdfBytes });
-            const pdf = await loadingTask.promise;
-            
-            container.innerHTML = '';
+            try {
+                const loadingTask = pdfjsLib.getDocument({ data: currentPdfBytes });
+                const pdf = await loadingTask.promise;
+                container.innerHTML = ''; // 清空載入文字
 
-            for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-                const page = await pdf.getPage(pageNum);
-                const viewport = page.getViewport({ scale: 1.0 }); 
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    const page = await pdf.getPage(pageNum);
+                    const viewport = page.getViewport({ scale: 1.0 }); 
 
-                const pageDiv = document.createElement('div');
-                pageDiv.className = 'page-item';
-                // 紀錄原始頁碼索引 (0-based，給 pdf-lib 用的)
-                pageDiv.dataset.originalIndex = pageNum - 1; 
+                    // 建立外層卡片
+                    const pageDiv = document.createElement('div');
+                    pageDiv.className = 'page-item';
+                    pageDiv.dataset.originalIndex = pageNum - 1; // 紀錄原始索引 (給 pdf-lib 用)
 
-                // 建立一個透明覆蓋層，用來處理點擊勾選，避免跟拖曳衝突
-                const clickArea = document.createElement('div');
-                clickArea.className = 'click-area';
+                    // 建立 Canvas (顯示圖片)
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    await page.render({ canvasContext: context, viewport: viewport }).promise;
 
-                const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
-                canvas.width = viewport.width;
-                canvas.height = viewport.height;
+                    // 建立控制區塊
+                    const controlsDiv = document.createElement('div');
+                    controlsDiv.className = 'controls';
 
-                await page.render({ canvasContext: context, viewport: viewport }).promise;
+                    // 建立勾選框
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.className = 'page-checkbox';
+                    
+                    // 勾選狀態改變時，更新卡片樣式
+                    checkbox.addEventListener('change', () => {
+                        if (checkbox.checked) {
+                            pageDiv.classList.add('selected');
+                        } else {
+                            pageDiv.classList.remove('selected');
+                        }
+                    });
 
-                const controlsDiv = document.createElement('div');
-                controlsDiv.className = 'controls';
+                    // 點擊 Canvas 圖片時，連動觸發打勾
+                    canvas.addEventListener('click', () => {
+                        checkbox.checked = !checkbox.checked;
+                        checkbox.dispatchEvent(new Event('change')); // 手動觸發 change 事件更新樣式
+                    });
 
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.className = 'page-checkbox'; // 加入 class 方便後續抓取
-                checkbox.addEventListener('change', (e) => {
-                    if (e.target.checked) {
-                        pageDiv.classList.add('selected');
-                    } else {
-                        pageDiv.classList.remove('selected');
-                    }
-                });
+                    const pageLabel = document.createElement('span');
+                    pageLabel.innerText = `原第 ${pageNum} 頁`;
 
-                // 點擊圖片區塊時觸發勾選
-                clickArea.addEventListener('click', () => {
-                    checkbox.checked = !checkbox.checked;
-                    checkbox.dispatchEvent(new Event('change'));
-                });
+                    // 建立單張存圖按鈕
+                    const btnDownloadImg = document.createElement('button');
+                    btnDownloadImg.innerText = '存為圖片';
+                    btnDownloadImg.addEventListener('click', () => {
+                        downloadAsImage(canvas, pageNum);
+                    });
 
-                const pageLabel = document.createElement('span');
-                pageLabel.innerText = `原第 ${pageNum} 頁`;
-
-                const btnDownloadImg = document.createElement('button');
-                btnDownloadImg.innerText = '存為圖片';
-                // 阻止事件冒泡，避免點擊按鈕時觸發拖曳或勾選
-                btnDownloadImg.addEventListener('mousedown', (e) => e.stopPropagation()); 
-                btnDownloadImg.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    downloadAsImage(canvas, pageNum);
-                });
-
-                controlsDiv.appendChild(checkbox);
-                controlsDiv.appendChild(pageLabel);
-                controlsDiv.appendChild(btnDownloadImg);
-
-                pageDiv.appendChild(clickArea);
-                pageDiv.appendChild(canvas);
-                pageDiv.appendChild(controlsDiv);
-                container.appendChild(pageDiv);
+                    // 組裝 DOM
+                    controlsDiv.appendChild(checkbox);
+                    controlsDiv.appendChild(pageLabel);
+                    controlsDiv.appendChild(btnDownloadImg);
+                    
+                    pageDiv.appendChild(canvas);
+                    pageDiv.appendChild(controlsDiv);
+                    container.appendChild(pageDiv);
+                }
+            } catch (error) {
+                container.innerHTML = '<span style="color:red;">載入失敗，請確認檔案是否為有效的 PDF 或受密碼保護。</span>';
+                console.error(error);
             }
         });
 
-        // 2. 匯出選擇的頁面為新 PDF (依據目前的畫面排序)
+        // 2. 匯出選擇的頁面為新 PDF (按照目前畫面的拖曳順序)
         btnExportPdf.addEventListener('click', async () => {
+            // 抓取畫面上「所有」卡片，過濾出「有打勾」的
+            const allItems = Array.from(container.querySelectorAll('.page-item'));
+            const selectedElements = allItems.filter(item => item.querySelector('.page-checkbox').checked);
+
+            if (selectedElements.length === 0) {
+                alert('請至少勾選一頁！');
+                return;
+            }
+
+            // 取得排序後的原始索引陣列
+            const indicesToExport = selectedElements.map(item => parseInt(item.dataset.originalIndex));
+
+            let customName = pdfFilenameInput.value.trim() || 'new_document';
+            if (!customName.toLowerCase().endsWith('.pdf')) customName += '.pdf';
+
+            // 變更按鈕狀態防止重複點擊
+            const originalBtnText = btnExportPdf.innerText;
+            btnExportPdf.innerText = "正在處理中...";
+            btnExportPdf.disabled = true;
+
             try {
-                // 修改邏輯：不使用 Set，而是直接抓取畫面上所有被勾選的元素
-                // 這樣抓出來的陣列順序，就會等於使用者拖曳後的順序！
-                const selectedElements = Array.from(container.querySelectorAll('.page-item'))
-                    .filter(item => item.querySelector('.page-checkbox').checked);
-
-                if (selectedElements.length === 0) {
-                    alert('請至少勾選一頁！');
-                    return;
-                }
-
-                // 提取這些元素身上記錄的「原始頁碼索引」
-                const indicesToExport = selectedElements.map(item => parseInt(item.dataset.originalIndex));
-
-                let customName = pdfFilenameInput.value.trim();
-                if (!customName) customName = 'new_document';
-                if (!customName.toLowerCase().endsWith('.pdf')) customName += '.pdf';
-
-                btnExportPdf.innerText = "處理中...";
-                btnExportPdf.disabled = true;
-
-                // 載入 PDF
                 const pdfDoc = await PDFLib.PDFDocument.load(currentPdfBytes);
                 const newPdfDoc = await PDFLib.PDFDocument.create();
 
-                // 依照我們提取的順序複製頁面
+                // 複製並加入頁面
                 const copiedPages = await newPdfDoc.copyPages(pdfDoc, indicesToExport);
                 copiedPages.forEach((page) => newPdfDoc.addPage(page));
 
-                // 儲存檔案
+                // 儲存並下載
                 const pdfBytes = await newPdfDoc.save();
                 const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-                
                 triggerDownload(blob, customName);
 
             } catch (error) {
                 console.error("PDF 匯出失敗:", error);
-                alert("匯出 PDF 時發生錯誤！可能原因：\n1. 原始 PDF 有特殊加密\n2. 檔案損毀\n請按 F12 查看控制台錯誤訊息。");
+                alert("匯出 PDF 時發生錯誤！請按 F12 查看控制台訊息。");
             } finally {
-                // 恢復按鈕狀態
-                btnExportPdf.innerText = "匯出勾選的頁面為新 PDF";
+                btnExportPdf.innerText = originalBtnText;
                 btnExportPdf.disabled = false;
             }
         });
@@ -235,12 +217,11 @@
         // 3. 將單頁 Canvas 轉為圖片並下載
         function downloadAsImage(canvas, pageNum) {
             const defaultImgName = `${originalFileName}_page_${pageNum}`;
-            let customImgName = prompt('請輸入圖片檔名：', defaultImgName);
+            let customImgName = prompt('請輸入圖片檔名 (不含副檔名也行)：', defaultImgName);
             
-            if (customImgName === null) return; 
+            if (customImgName === null) return; // 點擊取消
 
-            customImgName = customImgName.trim();
-            if (!customImgName) customImgName = defaultImgName;
+            customImgName = customImgName.trim() || defaultImgName;
             if (!customImgName.toLowerCase().endsWith('.png')) customImgName += '.png';
 
             canvas.toBlob((blob) => {
