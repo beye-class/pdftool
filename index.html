@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF 切分、轉圖與排序工具 (終極穩定版)</title>
+    <title>PDF 切分、轉圖與排序工具</title>
     <!-- 引入 PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <!-- 引入 pdf-lib -->
@@ -68,7 +68,8 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-        let currentPdfUint8Array = null; // 改用 Uint8Array 來儲存，確保複製安全
+        // 【關鍵改變】：我們直接儲存檔案本身 (File Object)，不存記憶體 Buffer
+        let currentFile = null; 
         let originalFileName = ""; 
 
         const uploadInput = document.getElementById('pdf-upload');
@@ -80,29 +81,35 @@
         new Sortable(container, {
             animation: 150,
             ghostClass: 'sortable-ghost',
-            filter: 'button, input', // 避免拖曳時影響按鈕和勾選框
+            filter: 'button, input',
             preventOnFilter: false
         });
 
+        // 建立一個公用函數，每次呼叫都會從檔案中產生一份「全新的」ArrayBuffer
+        function readFileAsArrayBuffer(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(reader.error);
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
         // 1. 處理檔案上傳與渲染
         uploadInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+            currentFile = e.target.files[0];
+            if (!currentFile) return;
 
-            originalFileName = file.name.replace(/\.[^/.]+$/, "");
+            originalFileName = currentFile.name.replace(/\.[^/.]+$/, "");
             pdfFilenameInput.value = `${originalFileName}_擷取`;
-
-            // 讀取檔案，並立刻轉換為 Uint8Array 格式（最穩定）
-            const arrayBuffer = await file.arrayBuffer();
-            currentPdfUint8Array = new Uint8Array(arrayBuffer);
             
             container.innerHTML = '正在載入 PDF 頁面，請稍候...';
             btnExportPdf.disabled = false;
 
             try {
-                // 【修復2：獨立記憶體】使用 new Uint8Array() 強制複製一份全新的記憶體給 PDF.js
-                const pdfjsData = new Uint8Array(currentPdfUint8Array);
-                const loadingTask = pdfjsLib.getDocument({ data: pdfjsData });
+                // 【讀取第 1 次】提供給 PDF.js 產生縮圖
+                const pdfData = await readFileAsArrayBuffer(currentFile);
+                const loadingTask = pdfjsLib.getDocument({ data: pdfData });
                 const pdf = await loadingTask.promise;
                 
                 container.innerHTML = ''; 
@@ -116,19 +123,4 @@
                     pageDiv.dataset.originalIndex = pageNum - 1; 
 
                     const canvas = document.createElement('canvas');
-                    // 【修復1：消滅警告】加入 { willReadFrequently: true } 提升 Canvas 效能
-                    const context = canvas.getContext('2d', { willReadFrequently: true });
-                    canvas.width = viewport.width;
-                    canvas.height = viewport.height;
-                    await page.render({ canvasContext: context, viewport: viewport }).promise;
-
-                    const controlsDiv = document.createElement('div');
-                    controlsDiv.className = 'controls';
-
-                    const checkbox = document.createElement('input');
-                    checkbox.type = 'checkbox';
-                    checkbox.className = 'page-checkbox';
-                    
-                    checkbox.addEventListener('change', () => {
-                        if (checkbox.checked) {
-                            pageDiv.classList.add('selected');
+                    // 保留 willReadFrequently: true 以消滅 Canvas 警告
