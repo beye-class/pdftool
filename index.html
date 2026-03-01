@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF 切分、轉圖與排序工具 (堅固版)</title>
+    <title>PDF 切分、轉圖與排序工具 (線上網頁版)</title>
     <!-- 引入 PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <!-- 引入 pdf-lib -->
@@ -18,6 +18,7 @@
             border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             display: flex; gap: 15px; align-items: center; flex-wrap: wrap;
         }
+        .toolbar input[type="file"] { cursor: pointer; }
         .toolbar input[type="text"] { padding: 6px; border: 1px solid #ccc; border-radius: 4px; width: 200px;}
         .toolbar button {
             padding: 6px 12px; background-color: #007bff; color: white;
@@ -48,12 +49,15 @@
         .controls button { font-size: 12px; padding: 4px 8px; cursor: pointer; background: #6c757d; color: white; border: none; border-radius: 3px;}
         .controls button:hover { background: #5a6268; }
         .controls input[type="checkbox"] { transform: scale(1.3); cursor: pointer; }
+        
+        #init-status { color: #d9534f; font-weight: bold; margin-right: 15px; }
     </style>
 </head>
 <body>
 
     <div class="toolbar">
-        <input type="file" id="pdf-upload" accept="application/pdf">
+        <span id="init-status">⚙️ 引擎啟動中...</span>
+        <input type="file" id="pdf-upload" accept="application/pdf" disabled>
         
         <div>
             <label for="pdf-filename">新 PDF 檔名：</label>
@@ -66,17 +70,36 @@
     <div id="thumbnails-container"></div>
 
     <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-        let currentFile = null; // 我們直接儲存「檔案本身」，不存記憶體
-        let originalFileName = ""; 
-
         const uploadInput = document.getElementById('pdf-upload');
         const container = document.getElementById('thumbnails-container');
         const btnExportPdf = document.getElementById('btn-export-pdf');
         const pdfFilenameInput = document.getElementById('pdf-filename');
+        const initStatus = document.getElementById('init-status');
 
-        // 初始化拖曳排序功能 (加上 Try-Catch 保護)
+        let currentFile = null; 
+        let originalFileName = ""; 
+
+        // 🟢 【關鍵修復】: 解決線上網頁版 Web Worker 的 CORS 跨網域阻擋問題
+        const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        
+        fetch(workerUrl)
+            .then(response => response.blob())
+            .then(blob => {
+                // 將外部程式碼轉成網頁專屬的本地虛擬網址 (Blob URL)
+                pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob);
+                // 引擎準備完畢，開放上傳
+                initStatus.style.display = 'none';
+                uploadInput.disabled = false;
+            })
+            .catch(error => {
+                console.warn("建立 Worker 失敗，啟用單執行緒安全模式", error);
+                // 如果使用者的網路或防毒軟體連 Blob 都擋，就切換成單執行緒模式 (100%可運行)
+                pdfjsLib.GlobalWorkerOptions.disableWorker = true;
+                initStatus.style.display = 'none';
+                uploadInput.disabled = false;
+            });
+
+        // 初始化拖曳排序功能
         try {
             new Sortable(container, {
                 animation: 150,
@@ -85,7 +108,7 @@
                 preventOnFilter: false
             });
         } catch (err) {
-            console.warn("拖曳功能初始化失敗，但不會影響其他功能運作:", err);
+            console.warn("拖曳套件初始化異常:", err);
         }
 
         // 1. 處理檔案上傳與渲染
@@ -93,7 +116,6 @@
             const file = e.target.files[0];
             if (!file) return;
 
-            // 立刻讓畫面出現載入中，確保「有反應」
             container.innerHTML = '<h3 style="color: #007bff;">⏳ 正在解析 PDF 檔案，請稍候...</h3>';
             btnExportPdf.disabled = true;
 
@@ -102,15 +124,14 @@
             pdfFilenameInput.value = `${originalFileName}_擷取`;
 
             try {
-                // 【關鍵防護 1】使用原生 arrayBuffer()，並明確轉換為 PDF.js 要求的 Uint8Array
                 const buffer = await currentFile.arrayBuffer();
                 const pdfjsData = new Uint8Array(buffer);
                 
                 const loadingTask = pdfjsLib.getDocument({ data: pdfjsData });
                 const pdf = await loadingTask.promise;
                 
-                container.innerHTML = ''; // 清空載入文字
-                btnExportPdf.disabled = false; // 開啟匯出按鈕
+                container.innerHTML = ''; 
+                btnExportPdf.disabled = false; 
 
                 for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
                     const page = await pdf.getPage(pageNum);
@@ -121,7 +142,7 @@
                     pageDiv.dataset.originalIndex = pageNum - 1; 
 
                     const canvas = document.createElement('canvas');
-                    const context = canvas.getContext('2d', { willReadFrequently: true }); // 消滅 Canvas 警告
+                    const context = canvas.getContext('2d', { willReadFrequently: true });
                     canvas.width = viewport.width;
                     canvas.height = viewport.height;
                     await page.render({ canvasContext: context, viewport: viewport }).promise;
@@ -164,12 +185,10 @@
                     container.appendChild(pageDiv);
                 }
             } catch (error) {
-                // 萬一出錯，直接把錯誤顯示在畫面上，不讓你乾等
-                container.innerHTML = `<h3 style="color:red;">❌ 載入失敗：${error.message}</h3>`;
+                container.innerHTML = `<h3 style="color:red;">❌ 載入失敗：${error.message}</h3><p>請重新整理網頁再試一次。</p>`;
                 console.error("載入失敗：", error);
             } finally {
-                // 【關鍵防護 2】清空 input 的值！這樣你再次選取「同一個檔案」時，也能正常觸發！
-                e.target.value = '';
+                e.target.value = ''; // 防呆重置
             }
         });
 
@@ -193,9 +212,7 @@
             btnExportPdf.disabled = true;
 
             try {
-                // 【關鍵防護 3】再次呼叫原生 arrayBuffer()，取得全新的乾淨記憶體給 pdf-lib 使用
                 const freshBuffer = await currentFile.arrayBuffer();
-                
                 const pdfDoc = await PDFLib.PDFDocument.load(freshBuffer);
                 const newPdfDoc = await PDFLib.PDFDocument.create();
 
