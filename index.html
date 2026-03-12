@@ -3,395 +3,344 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全能 PDF 工具：合併、切分、刪除、移動與轉圖</title>
-    <!-- 引入 PDF.js -->
+    <title>ADM Pro PDF Tool - 工程級 PDF 編輯器</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <!-- 引入 pdf-lib -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
-    <!-- 引入 SortableJS (用於拖曳排序) -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
     <style>
-        body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
+        :root {
+            --primary-color: #007bff;
+            --danger-color: #dc3545;
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+        }
+
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; background-color: var(--bg-color); color: #333; line-height: 1.5; }
+        
+        /* Toolbar Styles */
         .toolbar { 
-            margin-bottom: 15px; padding: 15px; background: #fff; 
-            border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px; padding: 20px; background: var(--card-bg); 
+            border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             display: flex; gap: 15px; align-items: center; flex-wrap: wrap;
         }
         .sub-toolbar { margin-bottom: 20px; display: flex; gap: 10px; }
-        .toolbar input[type="file"] { cursor: pointer; }
-        .toolbar input[type="text"] { padding: 6px; border: 1px solid #ccc; border-radius: 4px; width: 200px;}
+
+        /* Input & Buttons */
+        input[type="text"] { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; width: 250px; outline: none; transition: border 0.2s; }
+        input[type="text"]:focus { border-color: var(--primary-color); }
         
-        button { padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        .btn-primary { background-color: #007bff; color: white; }
-        .btn-primary:hover:not(:disabled) { background-color: #0056b3; }
+        button { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-primary { background-color: var(--primary-color); color: white; }
+        .btn-primary:hover:not(:disabled) { background-color: #0056b3; transform: translateY(-1px); }
         .btn-primary:disabled { background-color: #ccc; cursor: not-allowed; }
-        
-        .btn-secondary { background-color: #6c757d; color: white; }
-        .btn-secondary:hover { background-color: #5a6268; }
-        
-        .btn-danger { background-color: #dc3545; color: white; }
-        .btn-danger:hover { background-color: #c82333; }
+        .btn-secondary { background-color: #6e7e91; color: white; }
+        .btn-danger { background-color: var(--danger-color); color: white; }
+        .btn-icon { background: #eee; padding: 5px 10px; font-size: 12px; }
 
+        /* Container & Cards */
         #thumbnails-container { 
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; 
-            min-height: 200px; padding: 10px; background: #f0f0f0; border-radius: 8px; border: 2px dashed #ccc;
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 25px; 
+            min-height: 300px; padding: 20px; border: 2px dashed #d1d9e0; border-radius: 12px; background: #f1f3f5;
         }
         
-        /* 卡片樣式 */
         .page-item { 
-            background: #fff; border: 2px solid transparent; padding: 10px; 
-            text-align: center; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            transition: all 0.2s; cursor: grab; display: flex; flex-direction: column; justify-content: space-between;
-            position: relative; /* 為了讓刪除按鈕可以定位在右上角 */
+            background: var(--card-bg); border: 2px solid transparent; padding: 15px; 
+            border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); cursor: grab; position: relative;
         }
-        .page-item:active { cursor: grabbing; }
-        .page-item.selected { border: 2px solid #007bff; background: #e9f5ff; }
-        .sortable-ghost { opacity: 0.4; background-color: #e2e3e5; border: 2px dashed #6c757d; }
-        
-        /* 刪除按鈕 (右上角) */
+        .page-item.selected { border-color: var(--primary-color); background: #f0f7ff; }
+        .page-item:hover { transform: translateY(-5px); box-shadow: 0 8px 16px rgba(0,0,0,0.12); }
+        .sortable-ghost { opacity: 0.3; background: #e9ecef; border: 2px dashed #007bff; }
+
         .btn-delete-page {
-            position: absolute; top: -10px; right: -10px; background: #dc3545; color: white;
-            border: none; border-radius: 50%; width: 26px; height: 26px; cursor: pointer;
-            font-weight: bold; display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 10; font-size: 14px; padding: 0;
+            position: absolute; top: -12px; right: -12px; background: var(--danger-color); color: white;
+            border: none; border-radius: 50%; width: 28px; height: 28px; cursor: pointer;
+            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4); z-index: 10; font-size: 14px;
         }
-        .btn-delete-page:hover { background: #c82333; transform: scale(1.1); }
 
-        .page-item canvas { max-width: 100%; height: auto; border: 1px solid #eee; cursor: pointer; margin-bottom: 10px; }
-        .page-item canvas:hover { box-shadow: 0 0 8px rgba(0,123,255,0.5); }
-        
-        /* 控制區塊排版 */
-        .controls-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .controls-bottom { display: flex; justify-content: space-between; align-items: center; gap: 5px; }
-        
-        .file-label { font-size: 11px; color: #888; margin-bottom: 5px; word-break: break-all; height: 2.8em; overflow: hidden; }
-        .page-label { font-size: 14px; color: #333; font-weight: bold; }
-        .controls-top input[type="checkbox"] { transform: scale(1.3); cursor: pointer; }
-        
-        /* 小圖示按鈕 (左右移、存圖) */
-        .btn-icon { padding: 4px 8px; font-size: 14px; background: #e9ecef; color: #333; border: 1px solid #ced4da; }
-        .btn-icon:hover { background: #dde2e6; }
-        .btn-save { background: #28a745; color: white; border: none; }
-        .btn-save:hover { background: #218838; }
+        canvas { max-width: 100%; height: auto; border-radius: 4px; border: 1px solid #eee; margin: 10px 0; background: white; }
+        .file-label { font-size: 11px; color: #777; height: 32px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+        .controls-top { display: flex; justify-content: space-between; align-items: center; }
+        .controls-bottom { display: flex; justify-content: space-between; gap: 5px; margin-top: 10px; }
 
-        #init-status { color: #d9534f; font-weight: bold; margin-right: 15px; }
-        .empty-text { grid-column: 1 / -1; text-align: center; color: #888; margin-top: 50px; font-size: 18px; }
+        .status-badge { font-size: 12px; padding: 4px 8px; border-radius: 4px; background: #eee; }
+        .empty-text { grid-column: 1 / -1; text-align: center; color: #adb5bd; padding-top: 100px; font-size: 20px; font-weight: 300; }
+        
+        #loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 1000; justify-content: center; align-items: center; font-weight: bold; }
     </style>
 </head>
 <body>
 
+    <div id="loading-overlay">⏳ 處理中，請稍候...</div>
+
     <div class="toolbar">
-        <span id="init-status">⚙️ 引擎啟動中...</span>
-        <input type="file" id="pdf-upload" accept="application/pdf" multiple disabled>
-        
-        <div>
-            <label for="pdf-filename">新 PDF 檔名：</label>
-            <input type="text" id="pdf-filename" value="Merged_Document" placeholder="請輸入檔名">
-            <button id="btn-export-pdf" class="btn-primary" disabled>匯出勾選的頁面</button>
+        <div style="display:flex; flex-direction:column; gap:5px;">
+            <label style="font-weight:bold; font-size:14px;">1. 選擇檔案</label>
+            <input type="file" id="pdf-upload" accept="application/pdf" multiple>
         </div>
-        <span style="font-size: 13px; color: #666; margin-left: auto;">💡 提示：可滑鼠按住圖片拖曳，或點擊下方 ⬅️ ➡️ 按鈕移動</span>
+        
+        <div style="flex-grow: 1; border-left: 1px solid #eee; padding-left: 15px;">
+            <label style="font-weight:bold; font-size:14px; display:block; margin-bottom:5px;">2. 匯出設定</label>
+            <input type="text" id="pdf-filename" value="Merged_Document" placeholder="新檔名">
+            <button id="btn-export-pdf" class="btn-primary" disabled>🚀 匯出選中頁面</button>
+        </div>
     </div>
 
     <div class="sub-toolbar">
-        <button id="btn-select-all" class="btn-secondary">☑️ 全部打勾</button>
-        <button id="btn-deselect-all" class="btn-secondary">☐ 取消全選</button>
-        <button id="btn-clear-all" class="btn-danger">🗑️ 全部清空</button>
+        <button id="btn-select-all" class="btn-secondary">☑️ 全選</button>
+        <button id="btn-deselect-all" class="btn-secondary">☐ 取消</button>
+        <button id="btn-clear-all" class="btn-danger">🗑️ 清空所有</button>
     </div>
 
     <div id="thumbnails-container">
-        <div class="empty-text">尚未載入任何 PDF，請點擊上方按鈕上傳。</div>
+        <div class="empty-text">拖放或點擊上方按鈕開始處理 PDF</div>
     </div>
 
     <script>
-        const uploadInput = document.getElementById('pdf-upload');
-        const container = document.getElementById('thumbnails-container');
-        const btnExportPdf = document.getElementById('btn-export-pdf');
-        const pdfFilenameInput = document.getElementById('pdf-filename');
-        const initStatus = document.getElementById('init-status');
-
-        let loadedFilesMap = {}; 
-        let isFirstUpload = true;
-
-        // 初始化 PDF.js Worker
-        const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        fetch(workerUrl)
-            .then(response => response.blob())
-            .then(blob => {
-                pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob);
-                initStatus.style.display = 'none';
-                uploadInput.disabled = false;
-            })
-            .catch(error => {
-                console.warn("建立 Worker 失敗，啟用單執行緒模式", error);
-                pdfjsLib.GlobalWorkerOptions.disableWorker = true;
-                initStatus.style.display = 'none';
-                uploadInput.disabled = false;
-            });
-
-        // 初始化滑鼠拖曳排序
-        try {
-            new Sortable(container, {
-                animation: 150,
-                ghostClass: 'sortable-ghost',
-                // 確保點擊這些按鈕時，不會觸發拖曳
-                filter: 'button, input, .btn-delete-page, .btn-icon',
-                preventOnFilter: false
-            });
-        } catch (err) { console.warn("拖曳套件初始化異常:", err); }
-
-        // 檢查畫面是否為空的函數
-        function checkEmptyState() {
-            const items = container.querySelectorAll('.page-item');
-            if (items.length === 0) {
-                container.innerHTML = '<div class="empty-text">尚未載入任何 PDF，請點擊上方按鈕上傳。</div>';
-                isFirstUpload = true;
-                btnExportPdf.disabled = true;
+        /**
+         * PDFService: 負責底層數據管理與記憶體回收
+         */
+        class PDFService {
+            constructor() {
+                this.fileMap = new Map(); // fileId -> { name, buffer, refCount }
             }
+
+            async registerFile(file) {
+                const id = `file_${crypto.randomUUID()}`;
+                const buffer = await file.arrayBuffer();
+                this.fileMap.set(id, {
+                    name: file.name.replace(/\.[^/.]+$/, ""),
+                    buffer: buffer,
+                    refCount: 0
+                });
+                return id;
+            }
+
+            addRef(id) {
+                if (this.fileMap.has(id)) this.fileMap.get(id).refCount++;
+            }
+
+            releaseRef(id) {
+                const fileObj = this.fileMap.get(id);
+                if (fileObj) {
+                    fileObj.refCount--;
+                    if (fileObj.refCount <= 0) {
+                        this.fileMap.delete(id);
+                        console.log(`[GC] 釋放記憶體: ${id}`);
+                    }
+                }
+            }
+
+            getFileData(id) { return this.fileMap.get(id); }
         }
 
-        // 1. 處理檔案上傳
-        uploadInput.addEventListener('change', async (e) => {
-            const files = Array.from(e.target.files);
-            if (files.length === 0) return;
-
-            if (isFirstUpload) {
-                container.innerHTML = ''; 
-                isFirstUpload = false;
-            }
-
-            btnExportPdf.disabled = true;
-
-            for (const file of files) {
-                try {
-                    const fileId = 'file_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                    const originalName = file.name.replace(/\.[^/.]+$/, "");
-                    
-                    const buffer = await file.arrayBuffer();
-                    loadedFilesMap[fileId] = { name: originalName, buffer: buffer };
-
-                    const pdfjsData = new Uint8Array(buffer);
-                    const loadingTask = pdfjsLib.getDocument({ data: pdfjsData });
-                    const pdf = await loadingTask.promise;
-                    
-                    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-                        const page = await pdf.getPage(pageNum);
-                        const viewport = page.getViewport({ scale: 1.0 }); 
-
-                        // 建立卡片外框
-                        const pageDiv = document.createElement('div');
-                        pageDiv.className = 'page-item';
-                        pageDiv.dataset.fileId = fileId;
-                        pageDiv.dataset.originalIndex = pageNum - 1; 
-
-                        // 🗑️ 刪除按鈕 (右上角)
-                        const btnDelete = document.createElement('button');
-                        btnDelete.className = 'btn-delete-page';
-                        btnDelete.innerHTML = '✕';
-                        btnDelete.title = '刪除此頁';
-                        btnDelete.addEventListener('click', (ev) => {
-                            ev.stopPropagation(); // 防止觸發其他點擊事件
-                            pageDiv.remove(); // 從畫面上移除該頁
-                            checkEmptyState(); // 檢查是不是全刪光了
-                        });
-
-                        const fileLabel = document.createElement('div');
-                        fileLabel.className = 'file-label';
-                        fileLabel.innerText = `${originalName}.pdf`;
-
-                        const canvas = document.createElement('canvas');
-                        const context = canvas.getContext('2d', { willReadFrequently: true });
-                        canvas.width = viewport.width;
-                        canvas.height = viewport.height;
-                        await page.render({ canvasContext: context, viewport: viewport }).promise;
-
-                        // 建立控制區塊
-                        const controlsTop = document.createElement('div');
-                        controlsTop.className = 'controls-top';
-                        
-                        const controlsBottom = document.createElement('div');
-                        controlsBottom.className = 'controls-bottom';
-
-                        // 勾選框
-                        const checkbox = document.createElement('input');
-                        checkbox.type = 'checkbox';
-                        checkbox.className = 'page-checkbox';
-                        // 預設將上傳的頁面打勾
-                        checkbox.checked = true;
-                        pageDiv.classList.add('selected');
-                        
-                        checkbox.addEventListener('change', () => {
-                            if (checkbox.checked) pageDiv.classList.add('selected');
-                            else pageDiv.classList.remove('selected');
-                        });
-
-                        canvas.addEventListener('click', () => {
-                            checkbox.checked = !checkbox.checked;
-                            checkbox.dispatchEvent(new Event('change'));
-                        });
-
-                        const pageLabel = document.createElement('span');
-                        pageLabel.className = 'page-label';
-                        pageLabel.innerText = `第 ${pageNum} 頁`;
-
-                        // ⬅️ 往左移按鈕
-                        const btnMoveLeft = document.createElement('button');
-                        btnMoveLeft.className = 'btn-icon';
-                        btnMoveLeft.innerHTML = '⬅️';
-                        btnMoveLeft.title = '往前移';
-                        btnMoveLeft.addEventListener('click', (ev) => {
-                            ev.stopPropagation();
-                            const prev = pageDiv.previousElementSibling;
-                            if (prev && prev.classList.contains('page-item')) {
-                                container.insertBefore(pageDiv, prev);
-                            }
-                        });
-
-                        // ➡️ 往右移按鈕
-                        const btnMoveRight = document.createElement('button');
-                        btnMoveRight.className = 'btn-icon';
-                        btnMoveRight.innerHTML = '➡️';
-                        btnMoveRight.title = '往後移';
-                        btnMoveRight.addEventListener('click', (ev) => {
-                            ev.stopPropagation();
-                            const next = pageDiv.nextElementSibling;
-                            if (next && next.classList.contains('page-item')) {
-                                // 將下一個元素插到當前元素前面，達成交換位置
-                                container.insertBefore(next, pageDiv); 
-                            }
-                        });
-
-                        // 💾 單獨存圖按鈕
-                        const btnDownloadImg = document.createElement('button');
-                        btnDownloadImg.className = 'btn-icon btn-save';
-                        btnDownloadImg.innerText = '💾 存圖';
-                        btnDownloadImg.addEventListener('click', () => {
-                            downloadAsImage(canvas, originalName, pageNum);
-                        });
-
-                        controlsTop.appendChild(checkbox);
-                        controlsTop.appendChild(pageLabel);
-
-                        controlsBottom.appendChild(btnMoveLeft);
-                        controlsBottom.appendChild(btnMoveRight);
-                        controlsBottom.appendChild(btnDownloadImg);
-                        
-                        pageDiv.appendChild(btnDelete);
-                        pageDiv.appendChild(fileLabel);
-                        pageDiv.appendChild(canvas);
-                        pageDiv.appendChild(controlsTop);
-                        pageDiv.appendChild(controlsBottom);
-
-                        container.appendChild(pageDiv);
-                    }
-                } catch (error) {
-                    console.error(`檔案 ${file.name} 載入失敗：`, error);
-                    alert(`檔案 ${file.name} 載入失敗，可能是損毀或加密的 PDF。`);
-                }
-            }
-
-            btnExportPdf.disabled = false; 
-            e.target.value = ''; 
-        });
-
-        // 2. 匯出選擇的頁面為新 PDF
-        btnExportPdf.addEventListener('click', async () => {
-            const allItems = Array.from(container.querySelectorAll('.page-item'));
-            const selectedElements = allItems.filter(item => item.querySelector('.page-checkbox').checked);
-
-            if (selectedElements.length === 0) {
-                alert('請至少勾選一頁！');
-                return;
-            }
-
-            let customName = pdfFilenameInput.value.trim() || 'Merged_Document';
-            if (!customName.toLowerCase().endsWith('.pdf')) customName += '.pdf';
-
-            const originalBtnText = btnExportPdf.innerText;
-            btnExportPdf.innerText = "⏳ 正在處理中...";
-            btnExportPdf.disabled = true;
-
-            try {
-                const newPdfDoc = await PDFLib.PDFDocument.create();
-                const pdfLibDocsCache = {};
-
-                for (const item of selectedElements) {
-                    const fileId = item.dataset.fileId;
-                    const pageIndex = parseInt(item.dataset.originalIndex);
-
-                    if (!pdfLibDocsCache[fileId]) {
-                        const fileBuffer = loadedFilesMap[fileId].buffer;
-                        pdfLibDocsCache[fileId] = await PDFLib.PDFDocument.load(fileBuffer);
-                    }
-
-                    const sourcePdf = pdfLibDocsCache[fileId];
-                    const [copiedPage] = await newPdfDoc.copyPages(sourcePdf, [pageIndex]);
-                    newPdfDoc.addPage(copiedPage);
-                }
-
-                const pdfBytes = await newPdfDoc.save();
-                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-                triggerDownload(blob, customName);
-
-            } catch (error) {
-                console.error("PDF 匯出失敗:", error);
-                alert("匯出 PDF 時發生錯誤！請按 F12 查看控制台訊息。");
-            } finally {
-                btnExportPdf.innerText = originalBtnText;
-                btnExportPdf.disabled = false;
-            }
-        });
-
-        // 3. 將單頁 Canvas 轉為圖片
-        function downloadAsImage(canvas, originalName, pageNum) {
-            const defaultImgName = `${originalName}_page_${pageNum}`;
-            let customImgName = prompt('請輸入圖片檔名：', defaultImgName);
+        /**
+         * App: 表現層與事件處理
+         */
+        const App = {
+            service: new PDFService(),
             
-            if (customImgName === null) return; 
+            init() {
+                this.initPdfJs();
+                this.initSortable();
+                this.bindEvents();
+            },
 
-            customImgName = customImgName.trim() || defaultImgName;
-            if (!customImgName.toLowerCase().endsWith('.png')) customImgName += '.png';
+            initPdfJs() {
+                const url = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                pdfjsLib.GlobalWorkerOptions.workerSrc = url;
+            },
 
-            canvas.toBlob((blob) => {
-                triggerDownload(blob, customImgName);
-            }, 'image/png');
-        }
+            initSortable() {
+                const container = document.getElementById('thumbnails-container');
+                new Sortable(container, {
+                    animation: 250,
+                    ghostClass: 'sortable-ghost',
+                    filter: 'button, input',
+                    preventOnFilter: false
+                });
+            },
 
-        // 4. 工具列按鈕功能
-        document.getElementById('btn-select-all').addEventListener('click', () => {
-            document.querySelectorAll('.page-item').forEach(item => {
-                const checkbox = item.querySelector('.page-checkbox');
-                if (!checkbox.checked) { checkbox.checked = true; checkbox.dispatchEvent(new Event('change')); }
-            });
-        });
+            bindEvents() {
+                document.getElementById('pdf-upload').addEventListener('change', (e) => this.handleUpload(e));
+                document.getElementById('btn-export-pdf').addEventListener('click', () => this.handleExport());
+                document.getElementById('btn-select-all').addEventListener('click', () => this.toggleAll(true));
+                document.getElementById('btn-deselect-all').addEventListener('click', () => this.toggleAll(false));
+                document.getElementById('btn-clear-all').addEventListener('click', () => this.clearAll());
+            },
 
-        document.getElementById('btn-deselect-all').addEventListener('click', () => {
-            document.querySelectorAll('.page-item').forEach(item => {
-                const checkbox = item.querySelector('.page-checkbox');
-                if (checkbox.checked) { checkbox.checked = false; checkbox.dispatchEvent(new Event('change')); }
-            });
-        });
+            async handleUpload(e) {
+                const files = Array.from(e.target.files);
+                if (!files.length) return;
 
-        document.getElementById('btn-clear-all').addEventListener('click', () => {
-            if(confirm("確定要清空畫面上所有的 PDF 頁面嗎？")) {
-                container.innerHTML = '';
-                loadedFilesMap = {}; 
-                checkEmptyState();
-                pdfFilenameInput.value = 'Merged_Document';
+                this.setLoading(true);
+                const container = document.getElementById('thumbnails-container');
+                if (container.querySelector('.empty-text')) container.innerHTML = '';
+
+                for (const file of files) {
+                    try {
+                        const fileId = await this.service.registerFile(file);
+                        const fileData = this.service.getFileData(fileId);
+                        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(fileData.buffer) }).promise;
+
+                        for (let i = 1; i <= pdf.numPages; i++) {
+                            this.service.addRef(fileId);
+                            await this.renderPage(pdf, i, fileId, fileData.name);
+                        }
+                    } catch (err) {
+                        alert(`檔案載入失敗: ${file.name}`);
+                    }
+                }
+                this.updateUIState();
+                this.setLoading(false);
+                e.target.value = '';
+            },
+
+            async renderPage(pdf, pageNum, fileId, fileName) {
+                const page = await pdf.getPage(pageNum);
+                const viewport = page.getViewport({ scale: 0.5 }); // 預覽用低解析度
+                
+                const card = this.createCardDOM(fileId, pageNum - 1, fileName);
+                const canvas = card.querySelector('canvas');
+                const context = canvas.getContext('2d', { alpha: false });
+
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+
+                await page.render({ canvasContext: context, viewport }).promise;
+                document.getElementById('thumbnails-container').appendChild(card);
+            },
+
+            createCardDOM(fileId, index, fileName) {
+                const div = document.createElement('div');
+                div.className = 'page-item selected';
+                div.dataset.fileId = fileId;
+                div.dataset.pageIdx = index;
+                
+                div.innerHTML = `
+                    <button class="btn-delete-page" title="刪除">✕</button>
+                    <div class="file-label">${fileName}.pdf</div>
+                    <canvas></canvas>
+                    <div class="controls-top">
+                        <input type="checkbox" class="page-checkbox" checked>
+                        <span class="status-badge">P. ${index + 1}</span>
+                    </div>
+                    <div class="controls-bottom">
+                        <button class="btn-icon btn-move-left">⬅️</button>
+                        <button class="btn-icon btn-save-img">💾 存圖</button>
+                        <button class="btn-icon btn-move-right">➡️</button>
+                    </div>
+                `;
+
+                // 事件綁定
+                div.querySelector('.btn-delete-page').onclick = () => {
+                    div.remove();
+                    this.service.releaseRef(fileId);
+                    this.updateUIState();
+                };
+
+                const cb = div.querySelector('.page-checkbox');
+                cb.onchange = () => div.classList.toggle('selected', cb.checked);
+
+                div.querySelector('.btn-move-left').onclick = (e) => {
+                    e.stopPropagation();
+                    const prev = div.previousElementSibling;
+                    if (prev) div.parentNode.insertBefore(div, prev);
+                };
+
+                div.querySelector('.btn-move-right').onclick = (e) => {
+                    e.stopPropagation();
+                    const next = div.nextElementSibling;
+                    if (next) div.parentNode.insertBefore(next, div);
+                };
+
+                div.querySelector('.btn-save-img').onclick = () => this.downloadCanvas(div.querySelector('canvas'), fileName, index + 1);
+
+                return div;
+            },
+
+            async handleExport() {
+                const items = Array.from(document.querySelectorAll('.page-item'))
+                                   .filter(item => item.querySelector('.page-checkbox').checked);
+                
+                if (!items.length) return alert('請至少選擇一頁');
+
+                this.setLoading(true);
+                try {
+                    const newDoc = await PDFLib.PDFDocument.create();
+                    const pdfCache = new Map();
+
+                    for (const item of items) {
+                        const fileId = item.dataset.fileId;
+                        const pageIdx = parseInt(item.dataset.pageIdx);
+
+                        if (!pdfCache.has(fileId)) {
+                            const data = this.service.getFileData(fileId);
+                            pdfCache.set(fileId, await PDFLib.PDFDocument.load(data.buffer));
+                        }
+
+                        const [copiedPage] = await newDoc.copyPages(pdfCache.get(fileId), [pageIdx]);
+                        newDoc.addPage(copiedPage);
+                    }
+
+                    const bytes = await newDoc.save();
+                    let name = document.getElementById('pdf-filename').value.trim() || 'merged';
+                    if (!name.endsWith('.pdf')) name += '.pdf';
+                    
+                    this.triggerDownload(new Blob([bytes], { type: 'application/pdf' }), name);
+                } catch (err) {
+                    console.error(err);
+                    alert('匯出失敗，請查看控制台。');
+                }
+                this.setLoading(false);
+            },
+
+            downloadCanvas(canvas, fileName, pageNum) {
+                canvas.toBlob(blob => {
+                    this.triggerDownload(blob, `${fileName}_p${pageNum}.png`);
+                }, 'image/png');
+            },
+
+            triggerDownload(blob, name) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = name;
+                a.click();
+                URL.revokeObjectURL(url);
+            },
+
+            toggleAll(selected) {
+                document.querySelectorAll('.page-item').forEach(item => {
+                    const cb = item.querySelector('.page-checkbox');
+                    cb.checked = selected;
+                    item.classList.toggle('selected', selected);
+                });
+            },
+
+            clearAll() {
+                if (!confirm('確定清空所有頁面？')) return;
+                document.querySelectorAll('.page-item').forEach(item => {
+                    this.service.releaseRef(item.dataset.fileId);
+                    item.remove();
+                });
+                this.updateUIState();
+            },
+
+            updateUIState() {
+                const container = document.getElementById('thumbnails-container');
+                const hasItems = container.querySelectorAll('.page-item').length > 0;
+                document.getElementById('btn-export-pdf').disabled = !hasItems;
+                if (!hasItems) container.innerHTML = '<div class="empty-text">拖放或點擊上方按鈕開始處理 PDF</div>';
+            },
+
+            setLoading(show) {
+                document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
             }
-        });
+        };
 
-        // 5. 共用下載函數
-        function triggerDownload(blob, filename) {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
+        App.init();
     </script>
 </body>
 </html>
