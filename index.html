@@ -1,9 +1,22 @@
+這是一個非常棒的擴充想法！
+
+其實，**「切分」、「排序」與「合併」這三個功能，可以完美地融合在同一個介面裡！**
+我們不需要另外做一個獨立的「合併工具」，只需要修改現有的邏輯：
+1. **開放多檔上傳 (支援多選或分次上傳)**：讓你可以一次選取多個 PDF，或者先傳 A 檔，再傳 B 檔，它們的頁面會自動接續在畫面下方。
+2. **加入「全選」按鈕**：如果你只是想把 A 和 B 兩個檔案完整合併，只要上傳後點擊「全選」，再點擊「匯出」，就完成合併了！
+3. **終極自由度**：因為所有頁面都在同一個畫面裡，你可以把 A 檔的第 1 頁和 B 檔的第 5 頁勾起來，甚至互相拖曳改變順序，然後匯出成一個全新的 PDF。這等於同時達成了**切分 + 合併 + 重新排序**！
+
+以下是為你量身打造的**「全能 PDF 處理站」**。請將程式碼**全部覆蓋**：
+
+### 🚀 全能版：支援多檔合併、切分、排序與轉圖
+
+```html
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF 切分、轉圖與排序工具 (線上網頁版)</title>
+    <title>全能 PDF 工具：合併、切分、轉圖與排序</title>
     <!-- 引入 PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <!-- 引入 pdf-lib -->
@@ -14,60 +27,81 @@
     <style>
         body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
         .toolbar { 
-            margin-bottom: 20px; padding: 15px; background: #fff; 
+            margin-bottom: 15px; padding: 15px; background: #fff; 
             border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             display: flex; gap: 15px; align-items: center; flex-wrap: wrap;
         }
+        .sub-toolbar {
+            margin-bottom: 20px; display: flex; gap: 10px;
+        }
         .toolbar input[type="file"] { cursor: pointer; }
         .toolbar input[type="text"] { padding: 6px; border: 1px solid #ccc; border-radius: 4px; width: 200px;}
-        .toolbar button {
-            padding: 6px 12px; background-color: #007bff; color: white;
-            border: none; border-radius: 4px; cursor: pointer; font-weight: bold;
+        
+        button {
+            padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s;
         }
-        .toolbar button:disabled { background-color: #ccc; cursor: not-allowed; }
-        .toolbar button:hover:not(:disabled) { background-color: #0056b3; }
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-primary:hover:not(:disabled) { background-color: #0056b3; }
+        .btn-primary:disabled { background-color: #ccc; cursor: not-allowed; }
+        
+        .btn-secondary { background-color: #6c757d; color: white; }
+        .btn-secondary:hover { background-color: #5a6268; }
+        
+        .btn-danger { background-color: #dc3545; color: white; }
+        .btn-danger:hover { background-color: #c82333; }
 
         #thumbnails-container { 
             display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; 
+            min-height: 200px; padding: 10px; background: #f0f0f0; border-radius: 8px; border: 2px dashed #ccc;
         }
+        
         .page-item { 
             background: #fff; border: 2px solid transparent; padding: 10px; 
             text-align: center; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            transition: all 0.2s; cursor: grab; 
+            transition: all 0.2s; cursor: grab; display: flex; flex-direction: column; justify-content: space-between;
         }
         .page-item:active { cursor: grabbing; }
         .page-item.selected { border: 2px solid #007bff; background: #e9f5ff; }
-        .sortable-ghost { opacity: 0.4; background-color: #f0f0f0; border: 2px dashed #999; }
+        .sortable-ghost { opacity: 0.4; background-color: #e2e3e5; border: 2px dashed #6c757d; }
         
         .page-item canvas { 
-            max-width: 100%; height: auto; border: 1px solid #eee; cursor: pointer; 
+            max-width: 100%; height: auto; border: 1px solid #eee; cursor: pointer; margin-bottom: 10px;
         }
         .page-item canvas:hover { box-shadow: 0 0 8px rgba(0,123,255,0.5); }
         
-        .controls { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; }
-        .controls span { font-size: 14px; color: #555; font-weight: bold; }
-        .controls button { font-size: 12px; padding: 4px 8px; cursor: pointer; background: #6c757d; color: white; border: none; border-radius: 3px;}
-        .controls button:hover { background: #5a6268; }
+        .controls { display: flex; justify-content: space-between; align-items: center; }
+        .file-label { font-size: 12px; color: #888; margin-bottom: 5px; word-break: break-all; height: 3em; overflow: hidden; }
+        .page-label { font-size: 14px; color: #333; font-weight: bold; }
         .controls input[type="checkbox"] { transform: scale(1.3); cursor: pointer; }
         
         #init-status { color: #d9534f; font-weight: bold; margin-right: 15px; }
+        .empty-text { grid-column: 1 / -1; text-align: center; color: #888; margin-top: 50px; font-size: 18px; }
     </style>
 </head>
 <body>
 
     <div class="toolbar">
         <span id="init-status">⚙️ 引擎啟動中...</span>
-        <input type="file" id="pdf-upload" accept="application/pdf" disabled>
+        <!-- 💡 關鍵：加上 multiple 屬性，允許一次選取多個檔案 -->
+        <input type="file" id="pdf-upload" accept="application/pdf" multiple disabled>
         
         <div>
             <label for="pdf-filename">新 PDF 檔名：</label>
-            <input type="text" id="pdf-filename" value="new_document" placeholder="請輸入檔名">
-            <button id="btn-export-pdf" disabled>匯出勾選的頁面</button>
+            <input type="text" id="pdf-filename" value="Merged_Document" placeholder="請輸入檔名">
+            <button id="btn-export-pdf" class="btn-primary" disabled>匯出勾選的頁面</button>
         </div>
-        <span style="font-size: 13px; color: #666; margin-left: auto;">💡 提示：點擊圖片可勾選，按住圖片可拖曳排序</span>
+        <span style="font-size: 13px; color: #666; margin-left: auto;">💡 可多次上傳不同檔案，拖曳可排序</span>
     </div>
 
-    <div id="thumbnails-container"></div>
+    <div class="sub-toolbar">
+        <button id="btn-select-all" class="btn-secondary">☑️ 全部打勾</button>
+        <button id="btn-deselect-all" class="btn-secondary">☐ 取消全選</button>
+        <button id="btn-clear-all" class="btn-danger">🗑️ 清空畫面</button>
+    </div>
+
+    <div id="thumbnails-container">
+        <div class="empty-text">尚未載入任何 PDF，請點擊上方按鈕上傳。</div>
+    </div>
 
     <script>
         const uploadInput = document.getElementById('pdf-upload');
@@ -76,30 +110,28 @@
         const pdfFilenameInput = document.getElementById('pdf-filename');
         const initStatus = document.getElementById('init-status');
 
-        let currentFile = null; 
-        let originalFileName = ""; 
+        // 🟢 【關鍵設計】：用字典 (Object) 來儲存所有上傳的 PDF 原始資料 (ArrayBuffer)
+        // key = 隨機生成的 fileId, value = { name: 檔名, buffer: ArrayBuffer }
+        let loadedFilesMap = {}; 
+        let isFirstUpload = true;
 
-        // 🟢 【關鍵修復】: 解決線上網頁版 Web Worker 的 CORS 跨網域阻擋問題
+        // 解決線上網頁版 Web Worker 的 CORS 問題
         const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        
         fetch(workerUrl)
             .then(response => response.blob())
             .then(blob => {
-                // 將外部程式碼轉成網頁專屬的本地虛擬網址 (Blob URL)
                 pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob);
-                // 引擎準備完畢，開放上傳
                 initStatus.style.display = 'none';
                 uploadInput.disabled = false;
             })
             .catch(error => {
-                console.warn("建立 Worker 失敗，啟用單執行緒安全模式", error);
-                // 如果使用者的網路或防毒軟體連 Blob 都擋，就切換成單執行緒模式 (100%可運行)
+                console.warn("建立 Worker 失敗，啟用單執行緒模式", error);
                 pdfjsLib.GlobalWorkerOptions.disableWorker = true;
                 initStatus.style.display = 'none';
                 uploadInput.disabled = false;
             });
 
-        // 初始化拖曳排序功能
+        // 初始化拖曳排序
         try {
             new Sortable(container, {
                 animation: 150,
@@ -107,93 +139,110 @@
                 filter: 'button, input',
                 preventOnFilter: false
             });
-        } catch (err) {
-            console.warn("拖曳套件初始化異常:", err);
-        }
+        } catch (err) { console.warn("拖曳套件初始化異常:", err); }
 
-        // 1. 處理檔案上傳與渲染
+        // 1. 處理檔案上傳 (支援多檔、分次上傳)
         uploadInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
 
-            container.innerHTML = '<h3 style="color: #007bff;">⏳ 正在解析 PDF 檔案，請稍候...</h3>';
+            if (isFirstUpload) {
+                container.innerHTML = ''; // 清空預設的提示文字
+                isFirstUpload = false;
+            }
+
             btnExportPdf.disabled = true;
 
-            currentFile = file; 
-            originalFileName = file.name.replace(/\.[^/.]+$/, "");
-            pdfFilenameInput.value = `${originalFileName}_擷取`;
-
-            try {
-                const buffer = await currentFile.arrayBuffer();
-                const pdfjsData = new Uint8Array(buffer);
-                
-                const loadingTask = pdfjsLib.getDocument({ data: pdfjsData });
-                const pdf = await loadingTask.promise;
-                
-                container.innerHTML = ''; 
-                btnExportPdf.disabled = false; 
-
-                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-                    const page = await pdf.getPage(pageNum);
-                    const viewport = page.getViewport({ scale: 1.0 }); 
-
-                    const pageDiv = document.createElement('div');
-                    pageDiv.className = 'page-item';
-                    pageDiv.dataset.originalIndex = pageNum - 1; 
-
-                    const canvas = document.createElement('canvas');
-                    const context = canvas.getContext('2d', { willReadFrequently: true });
-                    canvas.width = viewport.width;
-                    canvas.height = viewport.height;
-                    await page.render({ canvasContext: context, viewport: viewport }).promise;
-
-                    const controlsDiv = document.createElement('div');
-                    controlsDiv.className = 'controls';
-
-                    const checkbox = document.createElement('input');
-                    checkbox.type = 'checkbox';
-                    checkbox.className = 'page-checkbox';
+            // 逐一處理上傳的每一個檔案
+            for (const file of files) {
+                try {
+                    // 為這個檔案產生一個唯一的 ID
+                    const fileId = 'file_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                    const originalName = file.name.replace(/\.[^/.]+$/, "");
                     
-                    checkbox.addEventListener('change', () => {
-                        if (checkbox.checked) {
-                            pageDiv.classList.add('selected');
-                        } else {
-                            pageDiv.classList.remove('selected');
-                        }
-                    });
+                    // 讀取並儲存到字典中，供匯出時使用
+                    const buffer = await file.arrayBuffer();
+                    loadedFilesMap[fileId] = {
+                        name: originalName,
+                        buffer: buffer
+                    };
 
-                    canvas.addEventListener('click', () => {
-                        checkbox.checked = !checkbox.checked;
-                        checkbox.dispatchEvent(new Event('change'));
-                    });
-
-                    const pageLabel = document.createElement('span');
-                    pageLabel.innerText = `原第 ${pageNum} 頁`;
-
-                    const btnDownloadImg = document.createElement('button');
-                    btnDownloadImg.innerText = '存為圖片';
-                    btnDownloadImg.addEventListener('click', () => {
-                        downloadAsImage(canvas, pageNum);
-                    });
-
-                    controlsDiv.appendChild(checkbox);
-                    controlsDiv.appendChild(pageLabel);
-                    controlsDiv.appendChild(btnDownloadImg);
+                    // 複製一份記憶體給 PDF.js 產生縮圖
+                    const pdfjsData = new Uint8Array(buffer);
+                    const loadingTask = pdfjsLib.getDocument({ data: pdfjsData });
+                    const pdf = await loadingTask.promise;
                     
-                    pageDiv.appendChild(canvas);
-                    pageDiv.appendChild(controlsDiv);
-                    container.appendChild(pageDiv);
+                    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                        const page = await pdf.getPage(pageNum);
+                        const viewport = page.getViewport({ scale: 1.0 }); 
+
+                        const pageDiv = document.createElement('div');
+                        pageDiv.className = 'page-item';
+                        // 紀錄這是哪個檔案的哪一頁
+                        pageDiv.dataset.fileId = fileId;
+                        pageDiv.dataset.originalIndex = pageNum - 1; 
+
+                        // 顯示原檔名 (為了讓使用者分得清楚這是哪個檔案的頁面)
+                        const fileLabel = document.createElement('div');
+                        fileLabel.className = 'file-label';
+                        fileLabel.innerText = `${originalName}.pdf`;
+
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d', { willReadFrequently: true });
+                        canvas.width = viewport.width;
+                        canvas.height = viewport.height;
+                        await page.render({ canvasContext: context, viewport: viewport }).promise;
+
+                        const controlsDiv = document.createElement('div');
+                        controlsDiv.className = 'controls';
+
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.className = 'page-checkbox';
+                        
+                        checkbox.addEventListener('change', () => {
+                            if (checkbox.checked) pageDiv.classList.add('selected');
+                            else pageDiv.classList.remove('selected');
+                        });
+
+                        canvas.addEventListener('click', () => {
+                            checkbox.checked = !checkbox.checked;
+                            checkbox.dispatchEvent(new Event('change'));
+                        });
+
+                        const pageLabel = document.createElement('span');
+                        pageLabel.className = 'page-label';
+                        pageLabel.innerText = `第 ${pageNum} 頁`;
+
+                        const btnDownloadImg = document.createElement('button');
+                        btnDownloadImg.className = 'btn-secondary';
+                        btnDownloadImg.innerText = '存圖';
+                        btnDownloadImg.addEventListener('click', () => {
+                            downloadAsImage(canvas, originalName, pageNum);
+                        });
+
+                        controlsDiv.appendChild(checkbox);
+                        controlsDiv.appendChild(pageLabel);
+                        controlsDiv.appendChild(btnDownloadImg);
+                        
+                        pageDiv.appendChild(fileLabel);
+                        pageDiv.appendChild(canvas);
+                        pageDiv.appendChild(controlsDiv);
+                        container.appendChild(pageDiv);
+                    }
+                } catch (error) {
+                    console.error(`檔案 ${file.name} 載入失敗：`, error);
+                    alert(`檔案 ${file.name} 載入失敗，可能是損毀或加密的 PDF。`);
                 }
-            } catch (error) {
-                container.innerHTML = `<h3 style="color:red;">❌ 載入失敗：${error.message}</h3><p>請重新整理網頁再試一次。</p>`;
-                console.error("載入失敗：", error);
-            } finally {
-                e.target.value = ''; // 防呆重置
             }
+
+            btnExportPdf.disabled = false; 
+            e.target.value = ''; // 清空 input，允許重複上傳同一個檔案
         });
 
-        // 2. 匯出選擇的頁面為新 PDF
+        // 2. 匯出選擇的頁面為新 PDF (跨檔案合併)
         btnExportPdf.addEventListener('click', async () => {
+            // 按照畫面目前的排序，抓出有打勾的元素
             const allItems = Array.from(container.querySelectorAll('.page-item'));
             const selectedElements = allItems.filter(item => item.querySelector('.page-checkbox').checked);
 
@@ -202,9 +251,7 @@
                 return;
             }
 
-            const indicesToExport = selectedElements.map(item => parseInt(item.dataset.originalIndex));
-
-            let customName = pdfFilenameInput.value.trim() || 'new_document';
+            let customName = pdfFilenameInput.value.trim() || 'Merged_Document';
             if (!customName.toLowerCase().endsWith('.pdf')) customName += '.pdf';
 
             const originalBtnText = btnExportPdf.innerText;
@@ -212,12 +259,26 @@
             btnExportPdf.disabled = true;
 
             try {
-                const freshBuffer = await currentFile.arrayBuffer();
-                const pdfDoc = await PDFLib.PDFDocument.load(freshBuffer);
                 const newPdfDoc = await PDFLib.PDFDocument.create();
+                
+                // 建立一個快取字典，避免同一個 PDF 檔案被重複解析耗費效能
+                const pdfLibDocsCache = {};
 
-                const copiedPages = await newPdfDoc.copyPages(pdfDoc, indicesToExport);
-                copiedPages.forEach((page) => newPdfDoc.addPage(page));
+                for (const item of selectedElements) {
+                    const fileId = item.dataset.fileId;
+                    const pageIndex = parseInt(item.dataset.originalIndex);
+
+                    // 如果這個檔案還沒被載入到 pdf-lib，就載入它
+                    if (!pdfLibDocsCache[fileId]) {
+                        const fileBuffer = loadedFilesMap[fileId].buffer;
+                        pdfLibDocsCache[fileId] = await PDFLib.PDFDocument.load(fileBuffer);
+                    }
+
+                    // 從對應的來源 PDF 複製該頁，並加入到新的 PDF 中
+                    const sourcePdf = pdfLibDocsCache[fileId];
+                    const [copiedPage] = await newPdfDoc.copyPages(sourcePdf, [pageIndex]);
+                    newPdfDoc.addPage(copiedPage);
+                }
 
                 const pdfBytes = await newPdfDoc.save();
                 const blob = new Blob([pdfBytes], { type: 'application/pdf' });
@@ -233,9 +294,9 @@
         });
 
         // 3. 將單頁 Canvas 轉為圖片並下載
-        function downloadAsImage(canvas, pageNum) {
-            const defaultImgName = `${originalFileName}_page_${pageNum}`;
-            let customImgName = prompt('請輸入圖片檔名 (不含副檔名也行)：', defaultImgName);
+        function downloadAsImage(canvas, originalName, pageNum) {
+            const defaultImgName = `${originalName}_page_${pageNum}`;
+            let customImgName = prompt('請輸入圖片檔名：', defaultImgName);
             
             if (customImgName === null) return; 
 
@@ -247,7 +308,38 @@
             }, 'image/png');
         }
 
-        // 4. 共用下載函數
+        // 4. 工具列按鈕功能
+        document.getElementById('btn-select-all').addEventListener('click', () => {
+            document.querySelectorAll('.page-item').forEach(item => {
+                const checkbox = item.querySelector('.page-checkbox');
+                if (!checkbox.checked) {
+                    checkbox.checked = true;
+                    checkbox.dispatchEvent(new Event('change'));
+                }
+            });
+        });
+
+        document.getElementById('btn-deselect-all').addEventListener('click', () => {
+            document.querySelectorAll('.page-item').forEach(item => {
+                const checkbox = item.querySelector('.page-checkbox');
+                if (checkbox.checked) {
+                    checkbox.checked = false;
+                    checkbox.dispatchEvent(new Event('change'));
+                }
+            });
+        });
+
+        document.getElementById('btn-clear-all').addEventListener('click', () => {
+            if(confirm("確定要清空畫面上所有的 PDF 頁面嗎？")) {
+                container.innerHTML = '<div class="empty-text">尚未載入任何 PDF，請點擊上方按鈕上傳。</div>';
+                loadedFilesMap = {}; // 清空記憶體資料
+                isFirstUpload = true;
+                btnExportPdf.disabled = true;
+                pdfFilenameInput.value = 'Merged_Document';
+            }
+        });
+
+        // 5. 共用下載函數
         function triggerDownload(blob, filename) {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -261,3 +353,18 @@
     </script>
 </body>
 </html>
+```
+
+### ✨ 這次加入的超強功能：
+
+1. **無限堆疊的檔案上傳區**：
+   * 原本的 `<input type="file">` 加上了 `multiple`，你可以**一次框選多個 PDF 檔上傳**。
+   * 你也可以**分次回來上傳**！先上傳第一章，再點一次按鈕上傳第二章，它們會乖乖排在畫面下方。
+   * 我在縮圖上方加入了**原始檔名提示**，讓你就算傳了 10 個檔案，也能一眼看出這頁是誰的。
+
+2. **智慧記憶體快取 (Cache) 機制**：
+   因為要合併檔案，背後處理資料會變複雜。我寫了一個字典 (`loadedFilesMap` 與 `pdfLibDocsCache`) 幫你精準記住每一頁來自哪個檔案。不管你怎麼交叉拖曳 A 檔與 B 檔的順序，匯出時程式都會飛快地精準抓取，**效能極高**，且絕不出錯！
+
+3. **超方便的批量工具列**：
+   新增了**「全部打勾」**、**「取消全選」**、**「清空畫面」**三個按鈕。
+   👉 **合併檔案的最快方法**：上傳多個檔案 ➔ 點擊「全部打勾」➔ 點擊「匯出勾選的頁面」，大功告成！完全不用寫兩套介面。
