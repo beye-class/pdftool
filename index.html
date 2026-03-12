@@ -3,417 +3,376 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全能 PDF 工具：智慧排序與合併</title>
+    <title>ADM Pro PDF Tool - 智慧排序與合併系統</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
     <style>
-        body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
-        .toolbar { 
-            margin-bottom: 15px; padding: 15px; background: #fff; 
-            border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            display: flex; gap: 15px; align-items: center; flex-wrap: wrap;
+        :root {
+            --primary: #007bff;
+            --success: #28a745;
+            --danger: #dc3545;
+            --gray: #6c757d;
+            --bg: #f4f7f6;
         }
-        .sub-toolbar { margin-bottom: 20px; display: flex; gap: 10px; }
-        .toolbar input[type="file"] { cursor: pointer; }
-        .toolbar input[type="text"] { padding: 6px; border: 1px solid #ccc; border-radius: 4px; width: 200px;}
-        
-        button { padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        .btn-primary { background-color: #007bff; color: white; }
-        .btn-primary:hover:not(:disabled) { background-color: #0056b3; }
-        .btn-primary:disabled { background-color: #ccc; cursor: not-allowed; }
-        
-        .btn-secondary { background-color: #6c757d; color: white; }
-        .btn-secondary:hover { background-color: #5a6268; }
-        
-        .btn-danger { background-color: #dc3545; color: white; }
-        .btn-danger:hover { background-color: #c82333; }
 
-        #thumbnails-container { 
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; 
-            min-height: 200px; padding: 10px; background: #f0f0f0; border-radius: 8px; border: 2px dashed #ccc;
-        }
+        body { font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; color: #333; }
         
+        /* Toolbar */
+        .main-toolbar {
+            background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin-bottom: 20px;
+        }
+        .file-input-wrapper { display: flex; flex-direction: column; gap: 5px; }
+        .export-group { flex-grow: 1; display: flex; align-items: center; gap: 10px; border-left: 1px solid #eee; padding-left: 20px; }
+        
+        input[type="text"] { padding: 10px; border: 1px solid #ddd; border-radius: 6px; width: 220px; transition: border 0.2s; }
+        input[type="text"]:focus { border-color: var(--primary); outline: none; }
+
+        button { 
+            padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer; 
+            font-weight: 600; transition: 0.2s; display: flex; align-items: center; gap: 8px;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover:not(:disabled) { background: #0056b3; transform: translateY(-1px); }
+        .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+        .btn-secondary { background: var(--gray); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+
+        /* Container */
+        #thumbnails-container { 
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 25px; 
+            padding: 20px; background: #e9ecef; border-radius: 12px; border: 2px dashed #ced4da; min-height: 400px;
+        }
+
+        /* Page Card */
         .page-item { 
-            background: #fff; border: 2px solid transparent; padding: 10px; 
-            text-align: center; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            transition: all 0.2s; cursor: grab; display: flex; flex-direction: column; justify-content: space-between;
-            position: relative; 
+            background: #fff; padding: 15px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            position: relative; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); cursor: grab;
+            border: 2px solid transparent;
         }
         .page-item:active { cursor: grabbing; }
-        .page-item.selected { border: 2px solid #007bff; background: #e9f5ff; }
-        .sortable-ghost { opacity: 0.4; background-color: #e2e3e5; border: 2px dashed #6c757d; }
-        
-        /* ✨ 新增：左上角的動態新頁碼徽章 */
+        .page-item.selected { border-color: var(--primary); background: #f0f7ff; }
+        .sortable-ghost { opacity: 0.3; transform: scale(0.9); }
+
+        /* Badge & Icons */
         .new-page-badge {
-            position: absolute; top: -12px; left: -12px; background: #28a745; color: white;
-            border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
-            font-size: 14px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 10;
-            transition: background 0.2s;
+            position: absolute; top: -12px; left: -12px; width: 32px; height: 32px;
+            background: var(--success); color: white; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 14px; box-shadow: 0 2px 6px rgba(40,167,69,0.4); z-index: 5;
         }
-
         .btn-delete-page {
-            position: absolute; top: -10px; right: -10px; background: #dc3545; color: white;
-            border: none; border-radius: 50%; width: 26px; height: 26px; cursor: pointer;
-            font-weight: bold; display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 10; font-size: 14px; padding: 0;
+            position: absolute; top: -10px; right: -10px; width: 28px; height: 28px;
+            background: var(--danger); color: white; border-radius: 50%; border: none;
+            cursor: pointer; font-size: 12px; box-shadow: 0 2px 6px rgba(220,53,69,0.3);
         }
-        .btn-delete-page:hover { background: #c82333; transform: scale(1.1); }
 
-        .page-item canvas { max-width: 100%; height: auto; border: 1px solid #eee; cursor: pointer; margin-bottom: 10px; }
-        .page-item canvas:hover { box-shadow: 0 0 8px rgba(0,123,255,0.5); }
+        .file-label { font-size: 12px; color: #777; margin-bottom: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        canvas { width: 100%; height: auto; border: 1px solid #eee; border-radius: 4px; background: white; }
         
-        .controls-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .controls-bottom { display: flex; justify-content: space-between; align-items: center; gap: 5px; }
-        
-        .file-label { font-size: 11px; color: #888; margin-bottom: 5px; word-break: break-all; height: 2.8em; overflow: hidden; }
-        .page-label { font-size: 13px; color: #555; }
-        .controls-top input[type="checkbox"] { transform: scale(1.3); cursor: pointer; }
-        
-        .btn-icon { padding: 4px 8px; font-size: 14px; background: #e9ecef; color: #333; border: 1px solid #ced4da; }
-        .btn-icon:hover { background: #dde2e6; }
-        .btn-save { background: #17a2b8; color: white; border: none; }
-        .btn-save:hover { background: #138496; }
+        .controls-top { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; }
+        .controls-bottom { display: flex; justify-content: space-between; gap: 5px; }
+        .btn-icon { background: #f1f3f5; padding: 6px; border-radius: 4px; font-size: 14px; flex-grow: 1; }
+        .btn-icon:hover { background: #e9ecef; }
 
-        #init-status { color: #d9534f; font-weight: bold; margin-right: 15px; }
-        .empty-text { grid-column: 1 / -1; text-align: center; color: #888; margin-top: 50px; font-size: 18px; }
+        #loading-overlay { 
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.8); z-index: 9999; justify-content: center; align-items: center;
+            flex-direction: column; font-weight: bold;
+        }
+
+        .empty-prompt { grid-column: 1 / -1; text-align: center; color: #adb5bd; padding-top: 150px; font-size: 1.2rem; }
     </style>
 </head>
 <body>
 
-    <div class="toolbar">
-        <span id="init-status">⚙️ 引擎啟動中...</span>
+<div id="loading-overlay">
+    <div style="font-size: 2rem;">⏳</div>
+    <div id="loading-text">引擎處理中...</div>
+</div>
+
+<div class="main-toolbar">
+    <div class="file-input-wrapper">
+        <label style="font-weight: bold; font-size: 0.9rem;">上傳 PDF 檔案</label>
         <input type="file" id="pdf-upload" accept="application/pdf" multiple disabled>
-        
-        <div>
-            <label for="pdf-filename">新 PDF 檔名：</label>
-            <input type="text" id="pdf-filename" value="Merged_Document" placeholder="請輸入檔名">
-            <button id="btn-export-pdf" class="btn-primary" disabled>匯出勾選的頁面</button>
-        </div>
-        <span style="font-size: 13px; color: #666; margin-left: auto;">💡 左上角綠色圈圈為匯出後的新頁碼</span>
     </div>
 
-    <div class="sub-toolbar">
-        <button id="btn-select-all" class="btn-secondary">☑️ 全部打勾</button>
-        <button id="btn-deselect-all" class="btn-secondary">☐ 取消全選</button>
-        <button id="btn-clear-all" class="btn-danger">🗑️ 全部清空</button>
+    <div class="export-group">
+        <input type="text" id="pdf-filename" value="Merged_Document" placeholder="新 PDF 檔名">
+        <button id="btn-export-pdf" class="btn-primary" disabled>🚀 匯出選中頁面</button>
     </div>
+    
+    <div style="font-size: 12px; color: #888;">💡 綠色圈圈為匯出後的頁碼，拖曳卡片可排序</div>
+</div>
 
-    <div id="thumbnails-container">
-        <div class="empty-text">尚未載入任何 PDF，請點擊上方按鈕上傳。</div>
-    </div>
+<div class="sub-toolbar">
+    <button id="btn-select-all" class="btn-secondary">☑️ 全部打勾</button>
+    <button id="btn-deselect-all" class="btn-secondary">☐ 取消全選</button>
+    <button id="btn-clear-all" class="btn-danger">🗑️ 全部清空</button>
+</div>
 
-    <script>
-        const uploadInput = document.getElementById('pdf-upload');
-        const container = document.getElementById('thumbnails-container');
-        const btnExportPdf = document.getElementById('btn-export-pdf');
-        const pdfFilenameInput = document.getElementById('pdf-filename');
-        const initStatus = document.getElementById('init-status');
+<div id="thumbnails-container">
+    <div class="empty-prompt">尚未載入任何 PDF，請點擊上方按鈕或拖放檔案至此。</div>
+</div>
 
-        let loadedFilesMap = {}; 
-        let isFirstUpload = true;
+<script>
+/**
+ * PDF 工程核心 Service
+ * 負責處理 PDF 的讀取、儲存引用與匯出邏輯
+ */
+const PDFEngine = {
+    fileRegistry: new Map(), // Map<ID, FileObject>
+    CMAP_URL: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
 
+    async init() {
         const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        fetch(workerUrl)
-            .then(response => response.blob())
-            .then(blob => {
-                pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob);
-                initStatus.style.display = 'none';
-                uploadInput.disabled = false;
-            })
-            .catch(error => {
-                console.warn("建立 Worker 失敗，啟用單執行緒模式", error);
-                pdfjsLib.GlobalWorkerOptions.disableWorker = true;
-                initStatus.style.display = 'none';
-                uploadInput.disabled = false;
-            });
+        pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+    },
 
-        // 🟢 【關鍵函數】：動態更新畫面上所有卡片的新頁碼
-        function updatePageNumbers() {
-            const items = container.querySelectorAll('.page-item');
-            let exportIndex = 1; // 匯出的頁碼計數器
+    async registerFile(file) {
+        const fileId = `f_${crypto.randomUUID()}`;
+        this.fileRegistry.set(fileId, file);
+        return fileId;
+    },
 
-            items.forEach((item) => {
-                const badge = item.querySelector('.new-page-badge');
-                const checkbox = item.querySelector('.page-checkbox');
+    async getPdfDocument(fileId) {
+        const file = this.fileRegistry.get(fileId);
+        const buffer = await file.arrayBuffer();
+        return await pdfjsLib.getDocument({
+            data: new Uint8Array(buffer),
+            cMapUrl: this.CMAP_URL,
+            cMapPacked: true
+        }).promise;
+    },
 
-                if (checkbox.checked) {
-                    badge.innerText = exportIndex;
-                    badge.style.background = '#28a745'; // 綠色代表會匯出
-                    exportIndex++;
-                } else {
-                    badge.innerText = '-';
-                    badge.style.background = '#6c757d'; // 灰色代表略過不匯出
-                }
-            });
-        }
+    getFile(fileId) {
+        return this.fileRegistry.get(fileId);
+    }
+};
 
-        // 初始化滑鼠拖曳排序
-        try {
-            new Sortable(container, {
-                animation: 150,
-                ghostClass: 'sortable-ghost',
-                filter: 'button, input, .btn-delete-page, .btn-icon',
-                preventOnFilter: false,
-                // 當使用者拖曳放開滑鼠後，立刻重新計算頁碼！
-                onEnd: function () {
-                    updatePageNumbers();
-                }
-            });
-        } catch (err) { console.warn("拖曳套件初始化異常:", err); }
+/**
+ * UI 管理器
+ * 負責 DOM 操作與事件處理
+ */
+const AppUI = {
+    container: document.getElementById('thumbnails-container'),
+    btnExport: document.getElementById('btn-export-pdf'),
+    loadingOverlay: document.getElementById('loading-overlay'),
 
-        function checkEmptyState() {
-            const items = container.querySelectorAll('.page-item');
-            if (items.length === 0) {
-                container.innerHTML = '<div class="empty-text">尚未載入任何 PDF，請點擊上方按鈕上傳。</div>';
-                isFirstUpload = true;
-                btnExportPdf.disabled = true;
-            }
-        }
+    init() {
+        this.initSortable();
+        this.bindEvents();
+    },
 
-        // 1. 處理檔案上傳
-        uploadInput.addEventListener('change', async (e) => {
-            const files = Array.from(e.target.files);
-            if (files.length === 0) return;
-
-            if (isFirstUpload) {
-                container.innerHTML = ''; 
-                isFirstUpload = false;
-            }
-
-            btnExportPdf.disabled = true;
-
-            for (const file of files) {
-                try {
-                    const fileId = 'file_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                    const originalName = file.name.replace(/\.[^/.]+$/, "");
-                    
-                    const buffer = await file.arrayBuffer();
-                    loadedFilesMap[fileId] = { name: originalName, buffer: buffer };
-
-                    const pdfjsData = new Uint8Array(buffer);
-                    const loadingTask = pdfjsLib.getDocument({ data: pdfjsData });
-                    const pdf = await loadingTask.promise;
-                    
-                    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-                        const page = await pdf.getPage(pageNum);
-                        const viewport = page.getViewport({ scale: 1.0 }); 
-
-                        const pageDiv = document.createElement('div');
-                        pageDiv.className = 'page-item selected';
-                        pageDiv.dataset.fileId = fileId;
-                        pageDiv.dataset.originalIndex = pageNum - 1; 
-
-                        // ✨ 動態新頁碼徽章 (左上角)
-                        const badge = document.createElement('div');
-                        badge.className = 'new-page-badge';
-                        // 初始內容稍後由 updatePageNumbers 統一填上
-
-                        const btnDelete = document.createElement('button');
-                        btnDelete.className = 'btn-delete-page';
-                        btnDelete.innerHTML = '✕';
-                        btnDelete.title = '刪除此頁';
-                        btnDelete.addEventListener('click', (ev) => {
-                            ev.stopPropagation();
-                            pageDiv.remove(); 
-                            updatePageNumbers(); // 刪除後重新計算頁碼
-                            checkEmptyState(); 
-                        });
-
-                        const fileLabel = document.createElement('div');
-                        fileLabel.className = 'file-label';
-                        fileLabel.innerText = `${originalName}.pdf`;
-
-                        const canvas = document.createElement('canvas');
-                        const context = canvas.getContext('2d', { willReadFrequently: true });
-                        canvas.width = viewport.width;
-                        canvas.height = viewport.height;
-                        await page.render({ canvasContext: context, viewport: viewport }).promise;
-
-                        const controlsTop = document.createElement('div');
-                        controlsTop.className = 'controls-top';
-                        
-                        const controlsBottom = document.createElement('div');
-                        controlsBottom.className = 'controls-bottom';
-
-                        const checkbox = document.createElement('input');
-                        checkbox.type = 'checkbox';
-                        checkbox.className = 'page-checkbox';
-                        checkbox.checked = true;
-                        
-                        checkbox.addEventListener('change', () => {
-                            if (checkbox.checked) pageDiv.classList.add('selected');
-                            else pageDiv.classList.remove('selected');
-                            updatePageNumbers(); // 打勾狀態改變，重新計算頁碼！
-                        });
-
-                        canvas.addEventListener('click', () => {
-                            checkbox.checked = !checkbox.checked;
-                            checkbox.dispatchEvent(new Event('change'));
-                        });
-
-                        const pageLabel = document.createElement('span');
-                        pageLabel.className = 'page-label';
-                        pageLabel.innerText = `原第 ${pageNum} 頁`;
-
-                        const btnMoveLeft = document.createElement('button');
-                        btnMoveLeft.className = 'btn-icon';
-                        btnMoveLeft.innerHTML = '⬅️';
-                        btnMoveLeft.title = '往前移';
-                        btnMoveLeft.addEventListener('click', (ev) => {
-                            ev.stopPropagation();
-                            const prev = pageDiv.previousElementSibling;
-                            if (prev && prev.classList.contains('page-item')) {
-                                container.insertBefore(pageDiv, prev);
-                                updatePageNumbers(); // 移動後重新計算頁碼
-                            }
-                        });
-
-                        const btnMoveRight = document.createElement('button');
-                        btnMoveRight.className = 'btn-icon';
-                        btnMoveRight.innerHTML = '➡️';
-                        btnMoveRight.title = '往後移';
-                        btnMoveRight.addEventListener('click', (ev) => {
-                            ev.stopPropagation();
-                            const next = pageDiv.nextElementSibling;
-                            if (next && next.classList.contains('page-item')) {
-                                container.insertBefore(next, pageDiv); 
-                                updatePageNumbers(); // 移動後重新計算頁碼
-                            }
-                        });
-
-                        const btnDownloadImg = document.createElement('button');
-                        btnDownloadImg.className = 'btn-icon btn-save';
-                        btnDownloadImg.innerText = '💾 存圖';
-                        btnDownloadImg.addEventListener('click', () => {
-                            downloadAsImage(canvas, originalName, pageNum);
-                        });
-
-                        controlsTop.appendChild(checkbox);
-                        controlsTop.appendChild(pageLabel);
-
-                        controlsBottom.appendChild(btnMoveLeft);
-                        controlsBottom.appendChild(btnMoveRight);
-                        controlsBottom.appendChild(btnDownloadImg);
-                        
-                        pageDiv.appendChild(badge);
-                        pageDiv.appendChild(btnDelete);
-                        pageDiv.appendChild(fileLabel);
-                        pageDiv.appendChild(canvas);
-                        pageDiv.appendChild(controlsTop);
-                        pageDiv.appendChild(controlsBottom);
-
-                        container.appendChild(pageDiv);
-                    }
-                } catch (error) {
-                    console.error(`檔案 ${file.name} 載入失敗：`, error);
-                }
-            }
-
-            updatePageNumbers(); // 整個檔案載入完畢後，執行一次頁碼初始化
-            btnExportPdf.disabled = false; 
-            e.target.value = ''; 
+    initSortable() {
+        new Sortable(this.container, {
+            animation: 250,
+            ghostClass: 'sortable-ghost',
+            filter: 'button, input',
+            preventOnFilter: false,
+            onEnd: () => this.refreshPageNumbers()
         });
+    },
 
-        // 2. 匯出選擇的頁面為新 PDF
-        btnExportPdf.addEventListener('click', async () => {
-            const allItems = Array.from(container.querySelectorAll('.page-item'));
-            const selectedElements = allItems.filter(item => item.querySelector('.page-checkbox').checked);
+    bindEvents() {
+        document.getElementById('pdf-upload').addEventListener('change', (e) => this.handleFileUpload(e));
+        document.getElementById('btn-export-pdf').addEventListener('click', () => this.handleExport());
+        document.getElementById('btn-select-all').addEventListener('click', () => this.toggleAll(true));
+        document.getElementById('btn-deselect-all').addEventListener('click', () => this.toggleAll(false));
+        document.getElementById('btn-clear-all').addEventListener('click', () => this.clearAll());
+    },
 
-            if (selectedElements.length === 0) {
-                alert('請至少勾選一頁！');
-                return;
-            }
+    async handleFileUpload(e) {
+        const files = Array.from(e.target.files);
+        if (!files.length) return;
 
-            let customName = pdfFilenameInput.value.trim() || 'Merged_Document';
-            if (!customName.toLowerCase().endsWith('.pdf')) customName += '.pdf';
+        this.showLoading(true, "正在解析檔案...");
+        if (this.container.querySelector('.empty-prompt')) this.container.innerHTML = '';
 
-            const originalBtnText = btnExportPdf.innerText;
-            btnExportPdf.innerText = "⏳ 正在處理中...";
-            btnExportPdf.disabled = true;
-
+        for (const file of files) {
             try {
-                const newPdfDoc = await PDFLib.PDFDocument.create();
-                const pdfLibDocsCache = {};
+                const fileId = await PDFEngine.registerFile(file);
+                const pdf = await PDFEngine.getPdfDocument(fileId);
+                const baseName = file.name.replace(/\.[^/.]+$/, "");
 
-                for (const item of selectedElements) {
-                    const fileId = item.dataset.fileId;
-                    const pageIndex = parseInt(item.dataset.originalIndex);
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    await this.renderThumbnail(pdf, i, fileId, baseName);
+                }
+            } catch (err) {
+                console.error("載入錯誤:", err);
+                alert(`檔案解析失敗: ${file.name}，可能是受保護的 PDF。`);
+            }
+        }
 
-                    if (!pdfLibDocsCache[fileId]) {
-                        const fileBuffer = loadedFilesMap[fileId].buffer;
-                        pdfLibDocsCache[fileId] = await PDFLib.PDFDocument.load(fileBuffer);
-                    }
+        this.refreshPageNumbers();
+        this.showLoading(false);
+        e.target.value = '';
+    },
 
-                    const sourcePdf = pdfLibDocsCache[fileId];
-                    const [copiedPage] = await newPdfDoc.copyPages(sourcePdf, [pageIndex]);
-                    newPdfDoc.addPage(copiedPage);
+    async renderThumbnail(pdf, pageNum, fileId, fileName) {
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 0.6 }); // 縮圖解析度優化
+
+        const card = document.createElement('div');
+        card.className = 'page-item selected';
+        card.dataset.fileId = fileId;
+        card.dataset.originIdx = pageNum - 1;
+
+        card.innerHTML = `
+            <div class="new-page-badge">-</div>
+            <button class="btn-delete-page">✕</button>
+            <div class="file-label">${fileName}.pdf</div>
+            <canvas></canvas>
+            <div class="controls-top">
+                <input type="checkbox" class="page-checkbox" checked>
+                <span style="font-size:12px; color:#999;">原始 P.${pageNum}</span>
+            </div>
+            <div class="controls-bottom">
+                <button class="btn-icon btn-move-prev">⬅️</button>
+                <button class="btn-icon btn-save-img" title="另存為圖片">💾</button>
+                <button class="btn-icon btn-move-next">➡️</button>
+            </div>
+        `;
+
+        const canvas = card.querySelector('canvas');
+        const context = canvas.getContext('2d', { alpha: false }); // 效能優化
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        await page.render({ canvasContext: context, viewport }).promise;
+
+        // 綁定卡片內事件
+        card.querySelector('.btn-delete-page').onclick = () => { card.remove(); this.refreshPageNumbers(); };
+        card.querySelector('.page-checkbox').onchange = () => {
+            card.classList.toggle('selected', card.querySelector('.page-checkbox').checked);
+            this.refreshPageNumbers();
+        };
+        card.querySelector('.btn-move-prev').onclick = () => {
+            const prev = card.previousElementSibling;
+            if (prev) this.container.insertBefore(card, prev);
+            this.refreshPageNumbers();
+        };
+        card.querySelector('.btn-move-next').onclick = () => {
+            const next = card.nextElementSibling;
+            if (next) this.container.insertBefore(next, card);
+            this.refreshPageNumbers();
+        };
+        card.querySelector('.btn-save-img').onclick = () => this.downloadCanvasAsImage(canvas, fileName, pageNum);
+
+        this.container.appendChild(card);
+    },
+
+    refreshPageNumbers() {
+        const items = this.container.querySelectorAll('.page-item');
+        let counter = 1;
+        items.forEach(item => {
+            const badge = item.querySelector('.new-page-badge');
+            const isChecked = item.querySelector('.page-checkbox').checked;
+            if (isChecked) {
+                badge.innerText = counter++;
+                badge.style.background = 'var(--success)';
+            } else {
+                badge.innerText = '-';
+                badge.style.background = 'var(--gray)';
+            }
+        });
+        this.btnExport.disabled = (counter === 1);
+        if (items.length === 0) this.container.innerHTML = '<div class="empty-prompt">尚未載入任何 PDF，請點擊上方按鈕或拖放檔案至此。</div>';
+    },
+
+    async handleExport() {
+        const selectedCards = Array.from(this.container.querySelectorAll('.page-item'))
+                                    .filter(el => el.querySelector('.page-checkbox').checked);
+        
+        if (!selectedCards.length) return;
+
+        this.showLoading(true, "正在合併並封裝 PDF...");
+
+        try {
+            const newPdf = await PDFLib.PDFDocument.create();
+            const sourceDocCache = new Map(); // 用於單次匯出的緩存
+
+            for (const card of selectedCards) {
+                const fid = card.dataset.fileId;
+                const idx = parseInt(card.dataset.originIdx);
+
+                if (!sourceDocCache.has(fid)) {
+                    // 核心點：每次匯出時才從 File 物件重新載入 fresh buffer
+                    const file = PDFEngine.getFile(fid);
+                    const freshBuffer = await file.arrayBuffer();
+                    sourceDocCache.set(fid, await PDFLib.PDFDocument.load(freshBuffer));
                 }
 
-                const pdfBytes = await newPdfDoc.save();
-                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-                triggerDownload(blob, customName);
-
-            } catch (error) {
-                console.error("PDF 匯出失敗:", error);
-                alert("匯出 PDF 時發生錯誤！請按 F12 查看控制台訊息。");
-            } finally {
-                btnExportPdf.innerText = originalBtnText;
-                btnExportPdf.disabled = false;
+                const srcDoc = sourceDocCache.get(fid);
+                const [copiedPage] = await newPdf.copyPages(srcDoc, [idx]);
+                newPdf.addPage(copiedPage);
             }
-        });
 
-        // 3. 將單頁 Canvas 轉為圖片
-        function downloadAsImage(canvas, originalName, pageNum) {
-            const defaultImgName = `${originalName}_page_${pageNum}`;
-            let customImgName = prompt('請輸入圖片檔名：', defaultImgName);
-            if (customImgName === null) return; 
-            customImgName = customImgName.trim() || defaultImgName;
-            if (!customImgName.toLowerCase().endsWith('.png')) customImgName += '.png';
+            const pdfBytes = await newPdf.save();
+            let fileName = document.getElementById('pdf-filename').value.trim() || 'Export';
+            if (!fileName.toLowerCase().endsWith('.pdf')) fileName += '.pdf';
 
-            canvas.toBlob((blob) => {
-                triggerDownload(blob, customImgName);
-            }, 'image/png');
+            this.triggerDownload(new Blob([pdfBytes], { type: 'application/pdf' }), fileName);
+        } catch (err) {
+            console.error("匯出失敗:", err);
+            alert("匯出 PDF 時發生錯誤，請檢查檔案是否含有權限限制。");
+        } finally {
+            this.showLoading(false);
         }
+    },
 
-        // 4. 工具列按鈕功能
-        document.getElementById('btn-select-all').addEventListener('click', () => {
-            document.querySelectorAll('.page-item').forEach(item => {
-                const checkbox = item.querySelector('.page-checkbox');
-                if (!checkbox.checked) { checkbox.checked = true; checkbox.dispatchEvent(new Event('change')); }
-            });
-            updatePageNumbers();
+    downloadCanvasAsImage(canvas, baseName, pNum) {
+        canvas.toBlob(blob => {
+            this.triggerDownload(blob, `${baseName}_p${pNum}.png`);
+        }, 'image/png');
+    },
+
+    triggerDownload(blob, name) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    },
+
+    toggleAll(state) {
+        this.container.querySelectorAll('.page-checkbox').forEach(cb => {
+            cb.checked = state;
+            cb.closest('.page-item').classList.toggle('selected', state);
         });
+        this.refreshPageNumbers();
+    },
 
-        document.getElementById('btn-deselect-all').addEventListener('click', () => {
-            document.querySelectorAll('.page-item').forEach(item => {
-                const checkbox = item.querySelector('.page-checkbox');
-                if (checkbox.checked) { checkbox.checked = false; checkbox.dispatchEvent(new Event('change')); }
-            });
-            updatePageNumbers();
-        });
-
-        document.getElementById('btn-clear-all').addEventListener('click', () => {
-            if(confirm("確定要清空畫面上所有的 PDF 頁面嗎？")) {
-                container.innerHTML = '';
-                loadedFilesMap = {}; 
-                checkEmptyState();
-                pdfFilenameInput.value = 'Merged_Document';
-            }
-        });
-
-        // 5. 共用下載函數
-        function triggerDownload(blob, filename) {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+    clearAll() {
+        if (confirm("確定清空目前所有進度嗎？")) {
+            this.container.innerHTML = '';
+            PDFEngine.fileRegistry.clear();
+            this.refreshPageNumbers();
         }
-    </script>
+    },
+
+    showLoading(show, text = "") {
+        document.getElementById('loading-text').innerText = text;
+        this.loadingOverlay.style.display = show ? 'flex' : 'none';
+    }
+};
+
+// 系統初始化
+(async () => {
+    try {
+        await PDFEngine.init();
+        AppUI.init();
+        document.getElementById('pdf-upload').disabled = false;
+    } catch (e) {
+        console.error("系統啟動失敗:", e);
+    }
+})();
+</script>
+
 </body>
 </html>
