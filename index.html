@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ADM Pro PDF Tool - 智慧排序與合併系統</title>
+    <title>ADM PDF Pro - 專業級多檔案合併與編輯器</title>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
@@ -13,365 +14,363 @@
             --primary: #007bff;
             --success: #28a745;
             --danger: #dc3545;
-            --gray: #6c757d;
-            --bg: #f4f7f6;
+            --warning: #ffc107;
+            --dark: #343a40;
+            --light: #f8f9fa;
+            --shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
-        body { font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; color: #333; }
-        
-        /* Toolbar */
-        .main-toolbar {
-            background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin-bottom: 20px;
-        }
-        .file-input-wrapper { display: flex; flex-direction: column; gap: 5px; }
-        .export-group { flex-grow: 1; display: flex; align-items: center; gap: 10px; border-left: 1px solid #eee; padding-left: 20px; }
-        
-        input[type="text"] { padding: 10px; border: 1px solid #ddd; border-radius: 6px; width: 220px; transition: border 0.2s; }
-        input[type="text"]:focus { border-color: var(--primary); outline: none; }
+        body { font-family: "Inter", -apple-system, sans-serif; background-color: #eef1f4; margin: 0; padding: 20px; color: #333; }
 
+        /* 頂部控制面板 */
+        .dashboard {
+            background: #fff; padding: 25px; border-radius: 16px; box-shadow: var(--shadow);
+            margin-bottom: 25px; display: flex; flex-direction: column; gap: 20px;
+        }
+
+        .upload-section {
+            border: 2px dashed #cbd5e0; background: #fdfdfd; padding: 40px; border-radius: 12px;
+            text-align: center; cursor: pointer; transition: all 0.3s ease;
+        }
+        .upload-section:hover, .upload-section.dragover { border-color: var(--primary); background: #f0f7ff; }
+        .upload-section h3 { margin: 0; color: var(--primary); font-size: 1.4rem; }
+        .upload-section p { color: #718096; margin: 8px 0 0; }
+
+        .action-bar { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
+        .export-control { display: flex; align-items: center; gap: 10px; background: #f1f3f5; padding: 10px 15px; border-radius: 8px; }
+        
+        /* 表單與按鈕 */
+        input[type="text"] { padding: 10px; border: 1px solid #ddd; border-radius: 6px; width: 240px; outline: none; }
+        input[type="text"]:focus { border-color: var(--primary); }
+        
         button { 
-            padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer; 
-            font-weight: 600; transition: 0.2s; display: flex; align-items: center; gap: 8px;
+            padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; 
+            font-weight: 600; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px;
         }
         .btn-primary { background: var(--primary); color: white; }
         .btn-primary:hover:not(:disabled) { background: #0056b3; transform: translateY(-1px); }
-        .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
-        .btn-secondary { background: var(--gray); color: white; }
+        .btn-primary:disabled { background: #cbd5e0; cursor: not-allowed; }
+        .btn-secondary { background: #6c757d; color: white; }
         .btn-danger { background: var(--danger); color: white; }
+        .btn-outline { background: transparent; border: 1px solid #ddd; color: #555; }
+        .btn-outline:hover { background: #f8f9fa; }
 
-        /* Container */
-        #thumbnails-container { 
+        /* 縮圖區域 */
+        #thumbnails-grid { 
             display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 25px; 
-            padding: 20px; background: #e9ecef; border-radius: 12px; border: 2px dashed #ced4da; min-height: 400px;
+            min-height: 400px; padding: 10px;
         }
 
-        /* Page Card */
-        .page-item { 
-            background: #fff; padding: 15px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-            position: relative; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); cursor: grab;
-            border: 2px solid transparent;
+        .page-card { 
+            background: #fff; border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            position: relative; transition: transform 0.2s, box-shadow 0.2s; border: 2px solid transparent;
+            cursor: grab;
         }
-        .page-item:active { cursor: grabbing; }
-        .page-item.selected { border-color: var(--primary); background: #f0f7ff; }
-        .sortable-ghost { opacity: 0.3; transform: scale(0.9); }
+        .page-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); }
+        .page-card.selected { border-color: var(--primary); background: #f0f7ff; }
+        .sortable-ghost { opacity: 0.2; transform: scale(0.8); }
 
-        /* Badge & Icons */
-        .new-page-badge {
-            position: absolute; top: -12px; left: -12px; width: 32px; height: 32px;
+        /* 卡片裝飾 */
+        .page-badge {
+            position: absolute; top: -12px; left: -12px; width: 34px; height: 34px;
             background: var(--success); color: white; border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
-            font-weight: bold; font-size: 14px; box-shadow: 0 2px 6px rgba(40,167,69,0.4); z-index: 5;
+            font-weight: bold; font-size: 14px; box-shadow: 0 2px 6px rgba(40,167,69,0.3); z-index: 5;
         }
-        .btn-delete-page {
+        .btn-card-del {
             position: absolute; top: -10px; right: -10px; width: 28px; height: 28px;
-            background: var(--danger); color: white; border-radius: 50%; border: none;
-            cursor: pointer; font-size: 12px; box-shadow: 0 2px 6px rgba(220,53,69,0.3);
+            background: var(--danger); color: white; border: none; border-radius: 50%;
+            cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 5;
         }
 
-        .file-label { font-size: 12px; color: #777; margin-bottom: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        canvas { width: 100%; height: auto; border: 1px solid #eee; border-radius: 4px; background: white; }
-        
-        .controls-top { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; }
-        .controls-bottom { display: flex; justify-content: space-between; gap: 5px; }
-        .btn-icon { background: #f1f3f5; padding: 6px; border-radius: 4px; font-size: 14px; flex-grow: 1; }
-        .btn-icon:hover { background: #e9ecef; }
+        canvas { width: 100%; height: auto; border: 1px solid #eee; border-radius: 6px; background: #fff; margin: 10px 0; }
+        .card-meta { font-size: 12px; color: #718096; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 5px; }
+        .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
 
-        #loading-overlay { 
+        /* 載入遮罩 */
+        #loader { 
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.8); z-index: 9999; justify-content: center; align-items: center;
-            flex-direction: column; font-weight: bold;
+            background: rgba(255,255,255,0.9); z-index: 9999; justify-content: center; align-items: center;
+            flex-direction: column; font-weight: bold; font-size: 1.2rem;
         }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        .empty-prompt { grid-column: 1 / -1; text-align: center; color: #adb5bd; padding-top: 150px; font-size: 1.2rem; }
+        .empty-state { grid-column: 1 / -1; text-align: center; padding-top: 100px; color: #a0aec0; }
     </style>
 </head>
 <body>
 
-<div id="loading-overlay">
-    <div style="font-size: 2rem;">⏳</div>
-    <div id="loading-text">引擎處理中...</div>
+<div id="loader">
+    <div class="spinner"></div>
+    <div id="loader-text">處理中...</div>
 </div>
 
-<div class="main-toolbar">
-    <div class="file-input-wrapper">
-        <label style="font-weight: bold; font-size: 0.9rem;">上傳 PDF 檔案</label>
-        <input type="file" id="pdf-upload" accept="application/pdf" multiple disabled>
+<div class="dashboard">
+    <div class="upload-section" id="drop-zone">
+        <h3>📄 點擊或拖放多個 PDF 檔案至此</h3>
+        <p>支援分批次上傳，頁面會自動累加</p>
+        <input type="file" id="file-input" accept="application/pdf" multiple style="display: none;">
     </div>
 
-    <div class="export-group">
-        <input type="text" id="pdf-filename" value="Merged_Document" placeholder="新 PDF 檔名">
-        <button id="btn-export-pdf" class="btn-primary" disabled>🚀 匯出選中頁面</button>
+    <div class="action-bar">
+        <div class="export-control">
+            <label style="font-size: 0.9rem; font-weight: 600;">匯出檔名：</label>
+            <input type="text" id="out-filename" value="Merged_Document">
+            <button id="btn-export" class="btn-primary" disabled>🚀 合併並匯出 PDF</button>
+        </div>
+
+        <div style="flex-grow: 1;"></div>
+
+        <button id="btn-sel-all" class="btn-outline">☑️ 全選</button>
+        <button id="btn-desel-all" class="btn-outline">☐ 取消</button>
+        <button id="btn-clear" class="btn-danger">🗑️ 清空工作區</button>
     </div>
-    
-    <div style="font-size: 12px; color: #888;">💡 綠色圈圈為匯出後的頁碼，拖曳卡片可排序</div>
 </div>
 
-<div class="sub-toolbar">
-    <button id="btn-select-all" class="btn-secondary">☑️ 全部打勾</button>
-    <button id="btn-deselect-all" class="btn-secondary">☐ 取消全選</button>
-    <button id="btn-clear-all" class="btn-danger">🗑️ 全部清空</button>
-</div>
-
-<div id="thumbnails-container">
-    <div class="empty-prompt">尚未載入任何 PDF，請點擊上方按鈕或拖放檔案至此。</div>
+<div id="thumbnails-grid">
+    <div class="empty-state">
+        <div style="font-size: 3rem; margin-bottom: 10px;">📂</div>
+        請上傳 PDF 開始編輯
+    </div>
 </div>
 
 <script>
 /**
- * PDF 工程核心 Service
- * 負責處理 PDF 的讀取、儲存引用與匯出邏輯
+ * 核心引擎 (PDF Engine)
+ * 負責 File 註冊與 pdf-lib / pdf.js 的橋接
  */
 const PDFEngine = {
-    fileRegistry: new Map(), // Map<ID, FileObject>
-    CMAP_URL: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
-
+    registry: new Map(), // 儲存 ID -> File 物件，確保記憶體引用不丟失
+    
     async init() {
-        const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     },
 
-    async registerFile(file) {
-        const fileId = `f_${crypto.randomUUID()}`;
-        this.fileRegistry.set(fileId, file);
-        return fileId;
+    async addFiles(files) {
+        const results = [];
+        for (const file of files) {
+            if (file.type !== 'application/pdf') continue;
+            const id = `file_${crypto.randomUUID()}`;
+            this.registry.set(id, file);
+            results.push({ id, file });
+        }
+        return results;
     },
 
-    async getPdfDocument(fileId) {
-        const file = this.fileRegistry.get(fileId);
+    async getFreshDoc(id) {
+        const file = this.registry.get(id);
         const buffer = await file.arrayBuffer();
-        return await pdfjsLib.getDocument({
-            data: new Uint8Array(buffer),
-            cMapUrl: this.CMAP_URL,
-            cMapPacked: true
-        }).promise;
+        return await PDFLib.PDFDocument.load(buffer);
     },
 
-    getFile(fileId) {
-        return this.fileRegistry.get(fileId);
+    clear() {
+        this.registry.clear();
     }
 };
 
 /**
- * UI 管理器
- * 負責 DOM 操作與事件處理
+ * UI 管理器 (App Controller)
  */
-const AppUI = {
-    container: document.getElementById('thumbnails-container'),
-    btnExport: document.getElementById('btn-export-pdf'),
-    loadingOverlay: document.getElementById('loading-overlay'),
+const App = {
+    grid: document.getElementById('thumbnails-grid'),
+    btnExport: document.getElementById('btn-export'),
+    loader: document.getElementById('loader'),
 
     init() {
-        this.initSortable();
-        this.bindEvents();
+        PDFEngine.init();
+        this.setupEventListeners();
+        this.setupSortable();
     },
 
-    initSortable() {
-        new Sortable(this.container, {
-            animation: 250,
+    setupEventListeners() {
+        const zone = document.getElementById('drop-zone');
+        const input = document.getElementById('file-input');
+
+        zone.onclick = () => input.click();
+        zone.ondragover = (e) => { e.preventDefault(); zone.classList.add('dragover'); };
+        zone.ondragleave = () => zone.classList.remove('dragover');
+        zone.ondrop = (e) => {
+            e.preventDefault();
+            zone.classList.remove('dragover');
+            this.handleUpload(e.dataTransfer.files);
+        };
+
+        input.onchange = (e) => this.handleUpload(e.target.files);
+        
+        document.getElementById('btn-export').onclick = () => this.runExport();
+        document.getElementById('btn-sel-all').onclick = () => this.toggleAll(true);
+        document.getElementById('btn-desel-all').onclick = () => this.toggleAll(false);
+        document.getElementById('btn-clear').onclick = () => this.clearAll();
+    },
+
+    setupSortable() {
+        new Sortable(this.grid, {
+            animation: 200,
             ghostClass: 'sortable-ghost',
-            filter: 'button, input',
-            preventOnFilter: false,
-            onEnd: () => this.refreshPageNumbers()
+            filter: '.empty-state, button, input',
+            onEnd: () => this.syncPageNumbers()
         });
     },
 
-    bindEvents() {
-        document.getElementById('pdf-upload').addEventListener('change', (e) => this.handleFileUpload(e));
-        document.getElementById('btn-export-pdf').addEventListener('click', () => this.handleExport());
-        document.getElementById('btn-select-all').addEventListener('click', () => this.toggleAll(true));
-        document.getElementById('btn-deselect-all').addEventListener('click', () => this.toggleAll(false));
-        document.getElementById('btn-clear-all').addEventListener('click', () => this.clearAll());
-    },
-
-    async handleFileUpload(e) {
-        const files = Array.from(e.target.files);
+    async handleUpload(files) {
         if (!files.length) return;
+        this.setLoading(true, "解析 PDF 中...");
 
-        this.showLoading(true, "正在解析檔案...");
-        if (this.container.querySelector('.empty-prompt')) this.container.innerHTML = '';
+        if (this.grid.querySelector('.empty-state')) this.grid.innerHTML = '';
 
-        for (const file of files) {
+        const newFiles = await PDFEngine.addFiles(files);
+        
+        for (const item of newFiles) {
             try {
-                const fileId = await PDFEngine.registerFile(file);
-                const pdf = await PDFEngine.getPdfDocument(fileId);
-                const baseName = file.name.replace(/\.[^/.]+$/, "");
+                const buffer = await item.file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({
+                    data: new Uint8Array(buffer),
+                    cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+                    cMapPacked: true
+                }).promise;
 
                 for (let i = 1; i <= pdf.numPages; i++) {
-                    await this.renderThumbnail(pdf, i, fileId, baseName);
+                    await this.renderCard(pdf, i, item.id, item.file.name);
                 }
             } catch (err) {
-                console.error("載入錯誤:", err);
-                alert(`檔案解析失敗: ${file.name}，可能是受保護的 PDF。`);
+                console.error("解析失敗:", err);
             }
         }
 
-        this.refreshPageNumbers();
-        this.showLoading(false);
-        e.target.value = '';
+        this.syncPageNumbers();
+        this.setLoading(false);
     },
 
-    async renderThumbnail(pdf, pageNum, fileId, fileName) {
+    async renderCard(pdf, pageNum, fileId, fileName) {
         const page = await pdf.getPage(pageNum);
-        const viewport = page.getViewport({ scale: 0.6 }); // 縮圖解析度優化
-
+        const viewport = page.getViewport({ scale: 0.6 });
+        
         const card = document.createElement('div');
-        card.className = 'page-item selected';
-        card.dataset.fileId = fileId;
-        card.dataset.originIdx = pageNum - 1;
-
+        card.className = 'page-card selected';
+        card.dataset.fid = fileId;
+        card.dataset.pidx = pageNum - 1;
         card.innerHTML = `
-            <div class="new-page-badge">-</div>
-            <button class="btn-delete-page">✕</button>
-            <div class="file-label">${fileName}.pdf</div>
+            <div class="page-badge">-</div>
+            <button class="btn-card-del">✕</button>
+            <div class="card-meta">${fileName}</div>
             <canvas></canvas>
-            <div class="controls-top">
-                <input type="checkbox" class="page-checkbox" checked>
-                <span style="font-size:12px; color:#999;">原始 P.${pageNum}</span>
-            </div>
-            <div class="controls-bottom">
-                <button class="btn-icon btn-move-prev">⬅️</button>
-                <button class="btn-icon btn-save-img" title="另存為圖片">💾</button>
-                <button class="btn-icon btn-move-next">➡️</button>
+            <div class="card-footer">
+                <label style="cursor:pointer; font-size:13px;">
+                    <input type="checkbox" class="page-cb" checked> 勾選匯出
+                </label>
+                <span style="color:#aaa; font-size:12px;">P.${pageNum}</span>
             </div>
         `;
 
         const canvas = card.querySelector('canvas');
-        const context = canvas.getContext('2d', { alpha: false }); // 效能優化
         canvas.width = viewport.width;
         canvas.height = viewport.height;
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
 
-        await page.render({ canvasContext: context, viewport }).promise;
+        // 卡片事件
+        card.querySelector('.btn-card-del').onclick = (e) => {
+            e.stopPropagation();
+            card.remove();
+            this.syncPageNumbers();
+        };
+        card.querySelector('.page-cb').onchange = () => {
+            card.classList.toggle('selected', card.querySelector('.page-cb').checked);
+            this.syncPageNumbers();
+        };
 
-        // 綁定卡片內事件
-        card.querySelector('.btn-delete-page').onclick = () => { card.remove(); this.refreshPageNumbers(); };
-        card.querySelector('.page-checkbox').onchange = () => {
-            card.classList.toggle('selected', card.querySelector('.page-checkbox').checked);
-            this.refreshPageNumbers();
-        };
-        card.querySelector('.btn-move-prev').onclick = () => {
-            const prev = card.previousElementSibling;
-            if (prev) this.container.insertBefore(card, prev);
-            this.refreshPageNumbers();
-        };
-        card.querySelector('.btn-move-next').onclick = () => {
-            const next = card.nextElementSibling;
-            if (next) this.container.insertBefore(next, card);
-            this.refreshPageNumbers();
-        };
-        card.querySelector('.btn-save-img').onclick = () => this.downloadCanvasAsImage(canvas, fileName, pageNum);
-
-        this.container.appendChild(card);
+        this.grid.appendChild(card);
     },
 
-    refreshPageNumbers() {
-        const items = this.container.querySelectorAll('.page-item');
-        let counter = 1;
-        items.forEach(item => {
-            const badge = item.querySelector('.new-page-badge');
-            const isChecked = item.querySelector('.page-checkbox').checked;
-            if (isChecked) {
-                badge.innerText = counter++;
+    syncPageNumbers() {
+        const cards = Array.from(this.grid.querySelectorAll('.page-card'));
+        let count = 1;
+        cards.forEach(card => {
+            const cb = card.querySelector('.page-cb');
+            const badge = card.querySelector('.page-badge');
+            if (cb.checked) {
+                badge.innerText = count++;
                 badge.style.background = 'var(--success)';
             } else {
                 badge.innerText = '-';
-                badge.style.background = 'var(--gray)';
+                badge.style.background = '#cbd5e0';
             }
         });
-        this.btnExport.disabled = (counter === 1);
-        if (items.length === 0) this.container.innerHTML = '<div class="empty-prompt">尚未載入任何 PDF，請點擊上方按鈕或拖放檔案至此。</div>';
-    },
-
-    async handleExport() {
-        const selectedCards = Array.from(this.container.querySelectorAll('.page-item'))
-                                    .filter(el => el.querySelector('.page-checkbox').checked);
-        
-        if (!selectedCards.length) return;
-
-        this.showLoading(true, "正在合併並封裝 PDF...");
-
-        try {
-            const newPdf = await PDFLib.PDFDocument.create();
-            const sourceDocCache = new Map(); // 用於單次匯出的緩存
-
-            for (const card of selectedCards) {
-                const fid = card.dataset.fileId;
-                const idx = parseInt(card.dataset.originIdx);
-
-                if (!sourceDocCache.has(fid)) {
-                    // 核心點：每次匯出時才從 File 物件重新載入 fresh buffer
-                    const file = PDFEngine.getFile(fid);
-                    const freshBuffer = await file.arrayBuffer();
-                    sourceDocCache.set(fid, await PDFLib.PDFDocument.load(freshBuffer));
-                }
-
-                const srcDoc = sourceDocCache.get(fid);
-                const [copiedPage] = await newPdf.copyPages(srcDoc, [idx]);
-                newPdf.addPage(copiedPage);
-            }
-
-            const pdfBytes = await newPdf.save();
-            let fileName = document.getElementById('pdf-filename').value.trim() || 'Export';
-            if (!fileName.toLowerCase().endsWith('.pdf')) fileName += '.pdf';
-
-            this.triggerDownload(new Blob([pdfBytes], { type: 'application/pdf' }), fileName);
-        } catch (err) {
-            console.error("匯出失敗:", err);
-            alert("匯出 PDF 時發生錯誤，請檢查檔案是否含有權限限制。");
-        } finally {
-            this.showLoading(false);
+        this.btnExport.disabled = count === 1;
+        if (cards.length === 0) {
+            this.grid.innerHTML = '<div class="empty-state">請上傳 PDF 開始編輯</div>';
         }
     },
 
-    downloadCanvasAsImage(canvas, baseName, pNum) {
-        canvas.toBlob(blob => {
-            this.triggerDownload(blob, `${baseName}_p${pNum}.png`);
-        }, 'image/png');
+    async runExport() {
+        const selectedCards = Array.from(this.grid.querySelectorAll('.page-card'))
+                                   .filter(c => c.querySelector('.page-cb').checked);
+        if (!selectedCards.length) return;
+
+        this.setLoading(true, "合併並生成 PDF 中...");
+        
+        try {
+            const newPdf = await PDFLib.PDFDocument.create();
+            const docCache = new Map();
+
+            for (const card of selectedCards) {
+                const fid = card.dataset.fid;
+                const pIdx = parseInt(card.dataset.pidx);
+
+                if (!docCache.has(fid)) {
+                    docCache.set(fid, await PDFEngine.getFreshDoc(fid));
+                }
+
+                const srcDoc = docCache.get(fid);
+                const [copiedPage] = await newPdf.copyPages(srcDoc, [pIdx]);
+                newPdf.addPage(copiedPage);
+            }
+
+            const bytes = await newPdf.save();
+            this.download(bytes, "application/pdf");
+        } catch (err) {
+            console.error(err);
+            alert("匯出失敗，請檢查檔案是否含有限制。");
+        }
+        this.setLoading(false);
     },
 
-    triggerDownload(blob, name) {
+    download(data, type) {
+        const blob = new Blob([data], { type });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
+        let name = document.getElementById('out-filename').value.trim() || 'Merged';
+        if (!name.toLowerCase().endsWith('.pdf')) name += '.pdf';
+        
         a.href = url;
         a.download = name;
-        document.body.appendChild(a);
         a.click();
-        document.body.removeChild(a);
         URL.revokeObjectURL(url);
     },
 
     toggleAll(state) {
-        this.container.querySelectorAll('.page-checkbox').forEach(cb => {
+        this.grid.querySelectorAll('.page-cb').forEach(cb => {
             cb.checked = state;
-            cb.closest('.page-item').classList.toggle('selected', state);
+            cb.closest('.page-card').classList.toggle('selected', state);
         });
-        this.refreshPageNumbers();
+        this.syncPageNumbers();
     },
 
     clearAll() {
-        if (confirm("確定清空目前所有進度嗎？")) {
-            this.container.innerHTML = '';
-            PDFEngine.fileRegistry.clear();
-            this.refreshPageNumbers();
+        if (confirm("確定清空所有檔案與進度？")) {
+            this.grid.innerHTML = '';
+            PDFEngine.clear();
+            this.syncPageNumbers();
         }
     },
 
-    showLoading(show, text = "") {
-        document.getElementById('loading-text').innerText = text;
-        this.loadingOverlay.style.display = show ? 'flex' : 'none';
+    setLoading(show, text) {
+        document.getElementById('loader-text').innerText = text;
+        this.loader.style.display = show ? 'flex' : 'none';
     }
 };
 
-// 系統初始化
-(async () => {
-    try {
-        await PDFEngine.init();
-        AppUI.init();
-        document.getElementById('pdf-upload').disabled = false;
-    } catch (e) {
-        console.error("系統啟動失敗:", e);
-    }
-})();
+App.init();
 </script>
 
 </body>
